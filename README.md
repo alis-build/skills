@@ -60,18 +60,18 @@ ADK Go skills for building [go.alis.build/adk](https://go.alis.build/adk) agents
 
 | Skill                | Directory                                     | Description                                                                                                              |
 | -------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| **add-tool**         | `skills/engineering/adk-go/add-tool/`         | Add synchronous ADK tools from `tools.proto`, define-generated stubs, and `functiontool` wrappers                       |
+| **add-tool**         | `skills/engineering/adk-go/add-tool/`         | Add synchronous ADK tools from `tools.proto`, define-generated stubs, and `functiontool` wrappers                        |
 | **add-lro**          | `skills/engineering/adk-go/add-lro/`          | Add long-running tools backed by `google.longrunning.Operation`, `alis.lro.v2` infra, and resumable chat sessions        |
-| **add-agui**         | `skills/engineering/adk-go/add-agui/`         | Wire the AG-UI web sublauncher for CopilotKit and other AG-UI SSE clients alongside the existing web launcher          |
+| **add-agui**         | `skills/engineering/adk-go/add-agui/`         | Wire the AG-UI web sublauncher for CopilotKit and other AG-UI SSE clients alongside the existing web launcher            |
 | **add-agent-skills** | `skills/engineering/adk-go/add-agent-skills/` | Embed runtime `SKILL.md` packs under `internal/skills/` via `skilltoolset` and wire them into `llmagent.Config.Toolsets` |
 
 ### Which skill to use
 
-| Need                                              | Skill              |
-| ------------------------------------------------- | ------------------ |
-| Immediate-return proto-backed RPC tool            | **add-tool**       |
-| Async work that returns an Operation handle       | **add-lro**        |
-| CopilotKit / AG-UI SSE frontend streaming         | **add-agui**       |
+| Need                                               | Skill                |
+| -------------------------------------------------- | -------------------- |
+| Immediate-return proto-backed RPC tool             | **add-tool**         |
+| Async work that returns an Operation handle        | **add-lro**          |
+| CopilotKit / AG-UI SSE frontend streaming          | **add-agui**         |
 | Embedded runtime skills inside the Go agent binary | **add-agent-skills** |
 
 These skills are complementary but not interchangeable. Each `SKILL.md` includes a "When not to use" section pointing to the right alternative.
@@ -160,7 +160,7 @@ Skills are grouped by category under `skills/`. Browse existing skills for patte
 - [skills.sh/alis-build/skills](https://skills.sh/alis-build/skills) — skill catalog for this repository
 - [skill-creator](https://www.skills.sh/anthropics/skills/skill-creator) — create, test, and iteratively improve skills
 - [vercel-labs/skills](https://github.com/vercel-labs/skills) — CLI, install paths, and supported agents
-- [go.alis.build/adk](https://go.alis.build/adk) — ADK Go framework these skills target
+- [go.alis.build](https://pkg.go.dev/go.alis.build) — Alis Build Golang packages
 
 ## License
 
