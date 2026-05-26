@@ -1,0 +1,13 @@
+package tools
+
+import (
+	"google.golang.org/grpc"
+
+	// Replace with your generated protobuf import.
+	pb "REPLACE_WITH_YOUR_PROTOBUF_GO_IMPORT"
+)
+
+// RegisterGRPC exposes ToolsService on a gRPC server (optional until you have a gRPC entrypoint).
+func RegisterGRPC(registrar grpc.ServiceRegistrar) {
+	pb.RegisterToolsServiceServer(registrar, toolsService)
+}

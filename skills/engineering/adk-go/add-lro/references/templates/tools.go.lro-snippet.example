@@ -1,0 +1,69 @@
+// Merge into internal/tools/tools.go after add-tool bootstrap.
+// Add imports:
+//   "cloud.google.com/go/longrunning/autogen/longrunningpb"
+//   "REPLACE_WITH_YOUR_MODULE/internal/lroresume"
+
+// googleLongrunningOperation describes the JSON shape returned for google.longrunning.Operation.
+type googleLongrunningOperation struct{}
+
+func (googleLongrunningOperation) JsonSchema() *jsonschema.Schema {
+	return &jsonschema.Schema{
+		Type:        "object",
+		Description: "Long-running operation resource.",
+		Properties: map[string]*jsonschema.Schema{
+			"name": {
+				Type:        "string",
+				Description: "Server-assigned operation name.",
+			},
+			"metadata": {
+				Type:        "object",
+				Description: "Service-specific operation metadata.",
+			},
+			"done": {
+				Type:        "boolean",
+				Description: "Whether the operation has completed.",
+			},
+			"error": {
+				Type:        "object",
+				Description: "Operation error details when the operation completes unsuccessfully.",
+				Properties: map[string]*jsonschema.Schema{
+					"code":    {Type: "integer", Description: "gRPC status code."},
+					"message": {Type: "string", Description: "Developer-facing error message."},
+					"details": {Type: "array", Description: "Additional error details.", Items: &jsonschema.Schema{Type: "object"}},
+				},
+			},
+			"response": {
+				Type:        "object",
+				Description: "Operation response payload when the operation completes successfully.",
+			},
+		},
+		Required: []string{"name"},
+	}
+}
+
+// NewLROTool wraps an RPC handler that returns google.longrunning.Operation.
+func NewLROTool[I WithSchema](name, description string, method func(ctx context.Context, input I) (*longrunningpb.Operation, error), opts ...NewToolOption) tool.Tool {
+	var i I
+
+	options := &NewToolOptions{withRequireConfirmation: false}
+	for _, opt := range opts {
+		opt(options)
+	}
+	config := functiontool.Config{
+		Name:                name,
+		Description:         description,
+		InputSchema:         i.JsonSchema(),
+		OutputSchema:        googleLongrunningOperation{}.JsonSchema(),
+		RequireConfirmation: options.withRequireConfirmation,
+		IsLongRunning:       false,
+	}
+	t, err := functiontool.New(config, func(tc tool.Context, input I) (*longrunningpb.Operation, error) {
+		ctx := lroresume.WrapToolContext(tc, name, auth.ForwardAuth(tc))
+		return method(ctx, input)
+	})
+	if err != nil {
+		alog.Fatalf(context.Background(), "failed to create tool %q: %v", name, err)
+		return nil
+	}
+	return t
+}

@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+// Set package to match this agent's tools.proto (read from workspace — do not copy from another agent).
+package REPLACE_WITH_YOUR_PROTO_PACKAGE;
+
+import "alis/open/options/v1/options.proto";
+import "google/protobuf/empty.proto";
+
+// Enable JsonSchema() on all messages. User runs define on this package to generate stubs. See references/json-schema.md.
+option (alis.open.options.v1.file).json_schema.generate = true;
+
+// ToolsService is the source of truth for tool contracts exposed to the ADK agent.
+//
+// Service, RPC, message, field, and enum comments are propagated into JSON Schemas
+// for tool selection. Write comments for both humans and the model.
+service ToolsService {
+  // LookupTicket returns the current status and summary for a support ticket.
+  //
+  // Use when the user asks about an existing ticket by ID. Do not use for creating
+  // tickets (use the appropriate create/LRO tool instead).
+  rpc LookupTicket(LookupTicketRequest) returns (LookupTicketResponse);
+
+  // ArchiveSession permanently archives a conversation session.
+  //
+  // Use only when the user explicitly confirms they want to archive. This action
+  // cannot be undone.
+  rpc ArchiveSession(ArchiveSessionRequest) returns (google.protobuf.Empty);
+}
+
+message LookupTicketRequest {
+  // Required. The ticket identifier, e.g. "TKT-12345".
+  string ticket_id = 1 [(alis.open.options.v1.field).json_schema = {
+    title: "Ticket ID"
+    description: "Support ticket identifier"
+    pattern: "^TKT-[0-9]+$"
+  }];
+}
+
+message LookupTicketResponse {
+  // Current ticket status, e.g. "open", "resolved".
+  string status = 1;
+  // Short human-readable summary of the ticket.
+  string summary = 2;
+}
+
+message ArchiveSessionRequest {
+  // Required. The session ID to archive.
+  string session_id = 1;
+}

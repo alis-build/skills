@@ -1,0 +1,23 @@
+// Snippet: wire proto-backed tools into your agent entrypoint (main.go or agent builder).
+//
+// 1. Add import for your internal/tools package.
+// 2. Append tools.MyTools() to the existing Tools slice (keep built-ins like loadmemorytool).
+
+import (
+	"google.golang.org/adk/tool"
+	"google.golang.org/adk/tool/loadmemorytool"
+
+	"REPLACE_WITH_YOUR_MODULE/internal/tools"
+)
+
+// Inside llmagent.Config:
+agentConfig := llmagent.Config{
+	// ...
+	Tools: append(
+		[]tool.Tool{loadmemorytool.New()},
+		tools.MyTools()...,
+	),
+	Toolsets: []tool.Toolset{
+		// Optional: tools.MyToolsSet(),
+	},
+}

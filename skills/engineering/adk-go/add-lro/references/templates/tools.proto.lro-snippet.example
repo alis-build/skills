@@ -1,0 +1,31 @@
+// Append to your agent's tools.proto (same ToolsService as sync tools).
+// Requires: import "google/longrunning/operations.proto";
+
+  // REPLACE_WITH_LRO_RPC_COMMENT_TITLE starts a long-running workflow.
+  //
+  // Use this tool when the task may take materially longer than a synchronous call.
+  // The RPC returns quickly with an operation handle; work continues asynchronously.
+  // Progress is surfaced via operation metadata while the operation is running.
+  rpc REPLACE_WITH_LRO_RPC_PascalCase(REPLACE_WITH_LRO_RPC_PascalCaseRequest) returns (google.longrunning.Operation) {
+    option (google.longrunning.operation_info) = {
+      response_type: "REPLACE_WITH_LRO_RPC_PascalCaseResponse"
+      metadata_type: "REPLACE_WITH_LRO_RPC_PascalCaseMetadata"
+    };
+  };
+
+// --- messages (add near other ToolsService messages) ---
+
+message REPLACE_WITH_LRO_RPC_PascalCaseRequest {
+  // REPLACE_WITH: document each field for the model.
+  string prompt = 1;
+}
+
+message REPLACE_WITH_LRO_RPC_PascalCaseResponse {
+  // Final result when the operation completes successfully.
+  string answer = 1;
+}
+
+message REPLACE_WITH_LRO_RPC_PascalCaseMetadata {
+  // Human-readable progress while the operation is in flight.
+  string progress_notes = 1;
+}

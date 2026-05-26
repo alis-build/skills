@@ -1,0 +1,8 @@
+resource "google_spanner_database_iam_member" "db_admin" {
+  project  = var.ALIS_MANAGED_SPANNER_PROJECT
+  instance = var.ALIS_MANAGED_SPANNER_INSTANCE
+  database = var.ALIS_MANAGED_SPANNER_DB
+
+  role   = "roles/spanner.databaseAdmin"
+  member = "serviceAccount:alis-build@${var.ALIS_OS_PROJECT}.iam.gserviceaccount.com"
+}

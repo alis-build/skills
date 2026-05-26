@@ -1,0 +1,28 @@
+{
+  "skill_name": "add-agui",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Add AG-UI / CopilotKit support to our ADK agent main.go — we already have webui and webapi launchers.",
+      "expected_output": "webagui import, webagui.NewLauncher with neuron service id and WithCORS inside web.NewLauncher",
+      "files": [],
+      "assertions": [
+        "Imports go.alis.build/adk/launchers/agui",
+        "webagui.NewLauncher inside web.NewLauncher",
+        "Service id matches infra neuron not llmagent name only",
+        "No tools.proto or define step"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Wire the ag-ui SSE endpoint so our frontend can talk to the agent; neuron id is in infra locals.",
+      "expected_output": "agui sublauncher wired with correct service id from infra",
+      "files": [],
+      "assertions": [
+        "Reads neuron from infra locals",
+        "Does not use add-tool or add-lro flows",
+        "go build mentioned or implied"
+      ]
+    }
+  ]
+}

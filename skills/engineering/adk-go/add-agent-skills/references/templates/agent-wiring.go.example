@@ -1,0 +1,25 @@
+// Wire skill toolset into the agent entrypoint.
+
+import (
+	"log"
+
+	"REPLACE_WITH_YOUR_MODULE/internal/skills"
+	"google.golang.org/adk/tool"
+	// ... llmagent, launcher imports ...
+)
+
+func main() {
+	ctx := context.Background()
+
+	skillToolset, err := skills.SkillToolset(ctx)
+	if err != nil {
+		log.Fatalf("failed to create skill toolset: %v", err)
+	}
+
+	agentConfig := llmagent.Config{
+		// Tools: proto-backed function tools (add-tool / add-lro), e.g. tools.MyTools()
+		Toolsets: []tool.Toolset{skillToolset},
+		// To combine with tools.MyToolsSet(): append both toolsets to the slice.
+	}
+	// ... model, session, launcher ...
+}

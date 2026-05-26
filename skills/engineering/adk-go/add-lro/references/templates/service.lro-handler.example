@@ -1,0 +1,112 @@
+// Patterns for internal/tools/service.go — LRO RPC + resumable handler + MyTools registration.
+// Replace REPLACE_WITH_* placeholders. Register handler in InitLRO (grpc.go.example).
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"time"
+
+	"REPLACE_WITH_YOUR_MODULE/internal/lroresume"
+	"cloud.google.com/go/longrunning/autogen/longrunningpb"
+	"github.com/google/uuid"
+	lro "go.alis.build/lro/v2"
+	"go.alis.build/alog"
+	"google.golang.org/adk/tool"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
+	pb "REPLACE_WITH_YOUR_PROTOBUF_GO_IMPORT"
+)
+
+const REPLACE_WITH_LRO_RESUME_PATH = "REPLACE_WITH_lro_snake_case"
+
+// REPLACE_WITH_LRO_TOOL_PrivateState is LRO private state for this tool (gob-encoded).
+type REPLACE_WITH_LRO_TOOL_PrivateState struct {
+	Prompt string
+	Resume lroresume.ADKResumeContext
+}
+
+func (s *myToolsService) REPLACE_WITH_LRO_RPC_PascalCase(ctx context.Context, req *pb.REPLACE_WITH_LRO_RPC_PascalCaseRequest) (*longrunningpb.Operation, error) {
+	if LRO == nil {
+		return nil, status.Error(codes.FailedPrecondition, "LRO client is not initialized")
+	}
+
+	prompt := strings.TrimSpace(req.GetPrompt())
+	if prompt == "" {
+		return nil, status.Error(codes.InvalidArgument, "prompt is required")
+	}
+
+	op, err := LRO.NewOperation(ctx, "operations/"+uuid.NewString(), &pb.REPLACE_WITH_LRO_RPC_PascalCaseMetadata{
+		ProgressNotes: "Workflow queued.",
+	})
+	if err != nil {
+		return nil, fmt.Errorf("create operation: %w", err)
+	}
+
+	priv := REPLACE_WITH_LRO_TOOL_PrivateState{Prompt: prompt}
+	if rc, ok := lroresume.ResumeContextFromContext(ctx); ok {
+		priv.Resume = rc
+	}
+	if err := op.SavePrivateState(&priv); err != nil {
+		return nil, fmt.Errorf("save private state: %w", err)
+	}
+
+	if err := op.ResumeViaTasks(REPLACE_WITH_LRO_RESUME_PATH, 0); err != nil {
+		return nil, fmt.Errorf("schedule operation: %w", err)
+	}
+
+	return op.OperationPb(), nil
+}
+
+func REPLACE_WITH_LRO_HANDLER(op *lro.Operation) {
+	state := &REPLACE_WITH_LRO_TOOL_PrivateState{}
+	if err := op.DecodePrivateState(state); err != nil {
+		_ = op.Fail("decode private state: %v", err)
+		return
+	}
+
+	meta := &pb.REPLACE_WITH_LRO_RPC_PascalCaseMetadata{}
+	if _, err := lro.UnmarshalMetadata(op, meta); err != nil {
+		_ = op.Fail("unmarshal metadata: %v", err)
+		return
+	}
+
+	if op.ResumePoint() == "" {
+		meta.ProgressNotes = "Work started."
+		op.SetResumePoint("waiting")
+		if err := op.SaveMetadata(meta); err != nil {
+			_ = op.Fail("save metadata: %v", err)
+			return
+		}
+		if err := op.ResumeViaTasks(REPLACE_WITH_LRO_RESUME_PATH, 14*time.Second); err != nil {
+			_ = op.Fail("reschedule operation: %v", err)
+		}
+		return
+	}
+
+	meta.ProgressNotes = "Work finished."
+	if err := op.SaveMetadata(meta); err != nil {
+		_ = op.Fail("save metadata: %v", err)
+		return
+	}
+
+	if err := op.Complete(&pb.REPLACE_WITH_LRO_RPC_PascalCaseResponse{
+		Answer: fmt.Sprintf("Completed for prompt %q.", state.Prompt),
+	}); err != nil {
+		_ = op.Fail("complete operation: %v", err)
+		return
+	}
+
+	bg := context.Background()
+	if err := lroresume.ResumeAfterOperation(bg, lroresume.DefaultResumeConfig(), op); err != nil {
+		alog.Errorf(bg, "resume after REPLACE_WITH_lro_snake_case: %v", err)
+	}
+}
+
+// In MyTools():
+//   NewLROTool(
+//     "REPLACE_WITH_lro_snake_case",
+//     pb.ToolsService_REPLACE_WITH_LRO_RPC_PascalCase_FullMethodDescription,
+//     toolsService.REPLACE_WITH_LRO_RPC_PascalCase,
+//   ),

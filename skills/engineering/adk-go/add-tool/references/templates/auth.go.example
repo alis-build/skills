@@ -1,0 +1,28 @@
+// Package auth forwards caller identity from ADK tool context to gRPC/outbound calls.
+//
+// Copy to internal/auth/auth.go when your project does not already have auth helpers.
+// Extend WithA2AIdentity and context keys if you use A2A transport metadata.
+package auth
+
+import (
+	"context"
+	"os"
+
+	"google.golang.org/adk/tool"
+	"google.golang.org/grpc/metadata"
+)
+
+const authHeader = "authorization"
+
+// TestAuthorization is optional for local ADK web testing (set ALIS_TEST_AUTHORIZATION).
+var TestAuthorization = os.Getenv("ALIS_TEST_AUTHORIZATION")
+
+// ForwardAuth copies authentication from tool.Context onto a standard context.Context.
+func ForwardAuth(tc tool.Context) context.Context {
+	ctx := tc
+	if os.Getenv("K_SERVICE") == "" && TestAuthorization != "" {
+		return metadata.AppendToOutgoingContext(ctx, authHeader, TestAuthorization)
+	}
+	// Add project-specific identity forwarding here (context values, IAM headers, etc.).
+	return ctx
+}

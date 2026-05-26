@@ -1,0 +1,27 @@
+// Wire into agent main.go — add AG-UI sublauncher to the existing web launcher stack.
+
+import (
+	webagui "go.alis.build/adk/launchers/agui"
+	// weblro "go.alis.build/adk/launchers/lro"  // if LRO is already wired
+	web "google.golang.org/adk/cmd/launcher/web"
+	"google.golang.org/adk/cmd/launcher/universal"
+	// ... other launcher imports ...
+)
+
+// Same as infra local.neuron / variables.neuron (and lroServiceID if using add-lro).
+const aguiServiceID = "REPLACE_WITH_AGUI_SERVICE_ID"
+
+func main() {
+	ctx := context.Background()
+	// ... agent config, optional tools.MustInitLRO(ctx, aguiServiceID) ...
+
+	l := universal.NewLauncher(web.NewLauncher(
+		webagentengine.NewLauncher(agentEngineID),
+		webui.NewLauncher(),
+		webapi.NewLauncher(),
+		weba2a.NewLauncher(),
+		// weblro.NewLauncher(weblro.WithServiceID(aguiServiceID), weblro.WithLROClient(tools.LRO)),
+		webagui.NewLauncher(aguiServiceID, webagui.WithCORS(webagui.CORSConfig{})),
+	))
+	// l.Execute(ctx, launcherConfig, os.Args[1:])
+}

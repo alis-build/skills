@@ -1,0 +1,39 @@
+{
+  "skill_name": "add-tool",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Bootstrap the agent with the proto-backed tools package; no tools registered yet, just wiring.",
+      "expected_output": "internal/tools package created, tools.proto stub with json_schema.generate, agent entrypoint wired with empty MyTools(), build passes",
+      "files": [],
+      "assertions": [
+        "tools.proto contains json_schema.generate",
+        "internal/tools/tools.go defines NewTool",
+        "service.go defines empty MyTools returning empty slice",
+        "agent entrypoint wires tools.MyTools()"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Add a sync tool lookup_ticket that takes ticket_id and returns status and summary.",
+      "expected_output": "LookupTicket RPC in tools.proto, handler on myToolsService, registered in MyTools as lookup_ticket with FullMethodDescription",
+      "files": [],
+      "assertions": [
+        "tools.proto defines LookupTicket RPC",
+        "service.go implements LookupTicket handler",
+        "MyTools registers lookup_ticket with NewTool"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Add archive_session tool returning empty; require user confirmation.",
+      "expected_output": "ArchiveSession RPC, NewToolForEmpty registration with WithRequireConfirmation",
+      "files": [],
+      "assertions": [
+        "tools.proto defines ArchiveSession returning google.protobuf.Empty",
+        "MyTools uses NewToolForEmpty for archive_session",
+        "archive_session registration includes WithRequireConfirmation"
+      ]
+    }
+  ]
+}

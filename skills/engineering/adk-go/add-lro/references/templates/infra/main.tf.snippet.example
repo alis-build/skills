@@ -1,0 +1,15 @@
+# Append to infra/main.tf after the agent Cloud Run service exists.
+
+module "alis_lro_v2" {
+  source = "./modules/alis.lro.v2"
+
+  alis_os_project               = var.ALIS_OS_PROJECT
+  alis_region                   = var.ALIS_REGION
+  alis_managed_spanner_project  = var.ALIS_MANAGED_SPANNER_PROJECT
+  alis_managed_spanner_instance = var.ALIS_MANAGED_SPANNER_INSTANCE
+  alis_managed_spanner_db       = var.ALIS_MANAGED_SPANNER_DB
+  agent_service_name            = google_cloud_run_v2_service.agent.name
+  neuron                        = local.neuron
+
+  depends_on = [google_project_service.environment]
+}

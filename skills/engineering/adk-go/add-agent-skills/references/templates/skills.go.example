@@ -1,0 +1,23 @@
+// Package skills exposes embedded agent skills via ADK skilltoolset.
+//
+// Place skill folders at internal/skills/skills/<skill-name>/SKILL.md
+package skills
+
+import (
+	"context"
+	"embed"
+
+	"google.golang.org/adk/tool"
+	"google.golang.org/adk/tool/skilltoolset"
+	"google.golang.org/adk/tool/skilltoolset/skill"
+)
+
+//go:embed skills
+var skills embed.FS
+
+// SkillToolset returns the toolset that provides load_skill and related skill tools.
+func SkillToolset(ctx context.Context) (tool.Toolset, error) {
+	return skilltoolset.New(ctx, skilltoolset.Config{
+		Source: skill.NewFileSystemSource(skills),
+	})
+}

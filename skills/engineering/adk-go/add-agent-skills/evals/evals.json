@@ -1,0 +1,39 @@
+{
+  "skill_name": "add-agent-skills",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Bootstrap embedded agent skills on our ADK agent: internal/skills package, skill toolset in main, no skills in the folder yet.",
+      "expected_output": "skills.go with go:embed skills and SkillToolset, main.go Toolsets wiring, empty skills/ directory ready for folders",
+      "files": [],
+      "assertions": [
+        "internal/skills/skills.go uses skilltoolset and embed.FS",
+        "main.go sets llmagent.Config.Toolsets with SkillToolset",
+        "Does not confuse with .agents/skills Cursor skills path",
+        "No tools.proto or define step"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Add a deep-research embedded skill with instructions for multi-source literature-style research.",
+      "expected_output": "internal/skills/skills/deep-research/SKILL.md with name and description frontmatter",
+      "files": [],
+      "assertions": [
+        "SKILL.md has YAML frontmatter with name and description",
+        "Folder under internal/skills/skills/",
+        "Does not require define on package"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Add two more embedded skills: code-review and summarize-meeting, each with its own SKILL.md.",
+      "expected_output": "Two sibling folders under internal/skills/skills/ with distinct frontmatter names",
+      "files": [],
+      "assertions": [
+        "Two separate skill directories",
+        "Distinct name in each frontmatter",
+        "go:embed picks up new folders on rebuild"
+      ]
+    }
+  ]
+}

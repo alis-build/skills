@@ -1,0 +1,65 @@
+package tools
+
+import (
+	"context"
+	"strings"
+
+	"google.golang.org/adk/tool"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
+
+	// Replace with your generated protobuf import after publishing tools.proto.
+	pb "REPLACE_WITH_YOUR_PROTOBUF_GO_IMPORT"
+)
+
+type myToolsService struct {
+	pb.UnimplementedToolsServiceServer
+}
+
+func (s *myToolsService) LookupTicket(ctx context.Context, req *pb.LookupTicketRequest) (*pb.LookupTicketResponse, error) {
+	ticketID := strings.TrimSpace(req.GetTicketId())
+	if ticketID == "" {
+		return nil, status.Error(codes.InvalidArgument, "ticket_id is required")
+	}
+
+	// TODO: implement your business logic.
+	return &pb.LookupTicketResponse{
+		Status:  "open",
+		Summary: "Example ticket " + ticketID,
+	}, nil
+}
+
+func (s *myToolsService) ArchiveSession(ctx context.Context, req *pb.ArchiveSessionRequest) (*emptypb.Empty, error) {
+	sessionID := strings.TrimSpace(req.GetSessionId())
+	if sessionID == "" {
+		return nil, status.Error(codes.InvalidArgument, "session_id is required")
+	}
+
+	// TODO: implement your business logic.
+	return &emptypb.Empty{}, nil
+}
+
+var toolsService = new(myToolsService)
+
+// MyTools returns all synchronous tools registered on the root agent.
+func MyTools() []tool.Tool {
+	return []tool.Tool{
+		NewTool(
+			"lookup_ticket",
+			pb.ToolsService_LookupTicket_FullMethodDescription,
+			toolsService.LookupTicket,
+		),
+		NewToolForEmpty(
+			"archive_session",
+			pb.ToolsService_ArchiveSession_FullMethodDescription,
+			toolsService.ArchiveSession,
+			WithRequireConfirmation(),
+		),
+	}
+}
+
+// MyToolsSet optionally groups the same tools for llmagent.Config.Toolsets.
+func MyToolsSet() tool.Toolset {
+	return NewToolSet("Tools", MyTools())
+}

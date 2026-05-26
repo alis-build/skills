@@ -1,0 +1,34 @@
+# Snippet: add inside google_vertex_ai_reasoning_engine.spec.deployment_spec
+# (merge with existing env blocks — telemetry, ALIS_OS_VERSION, etc.)
+#
+# Requires standard Alis infra variables and local.agent_service_url, e.g.:
+#   agent_service_url = var.AGENT_SERVICE_URL != "" ? var.AGENT_SERVICE_URL : "https://{neuron}-${var.ALIS_PROJECT_NR}.${var.ALIS_REGION}.run.app"
+
+      env {
+        name  = "ALIS_OS_PROJECT"
+        value = var.ALIS_OS_PROJECT
+      }
+      env {
+        name  = "ALIS_REGION"
+        value = var.ALIS_REGION
+      }
+      env {
+        name  = "ALIS_PROJECT_NR"
+        value = var.ALIS_PROJECT_NR
+      }
+      env {
+        name  = "ALIS_MANAGED_SPANNER_PROJECT"
+        value = var.ALIS_MANAGED_SPANNER_PROJECT
+      }
+      env {
+        name  = "ALIS_MANAGED_SPANNER_INSTANCE"
+        value = var.ALIS_MANAGED_SPANNER_INSTANCE
+      }
+      env {
+        name  = "ALIS_MANAGED_SPANNER_DB"
+        value = var.ALIS_MANAGED_SPANNER_DB
+      }
+      env {
+        name  = "AGENT_SERVICE_URL"
+        value = local.agent_service_url
+      }

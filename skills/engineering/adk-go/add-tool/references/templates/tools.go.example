@@ -1,0 +1,115 @@
+// Package tools bridges proto-defined RPCs to ADK function tools.
+//
+// Copy this file into your agent module at internal/tools/tools.go.
+// Replace the auth import path with your project's auth package, or use
+// references/templates/auth.go.example when you do not have one yet.
+package tools
+
+import (
+	"context"
+
+	"github.com/google/jsonschema-go/jsonschema"
+	"go.alis.build/alog"
+	"google.golang.org/adk/agent"
+	"google.golang.org/adk/tool"
+	"google.golang.org/adk/tool/functiontool"
+	"google.golang.org/protobuf/types/known/emptypb"
+)
+
+// Replace with your agent module's auth package, e.g. "example.com/myagent/internal/auth".
+// If you copied auth.go.example into internal/auth, use that import instead.
+import "REPLACE_WITH_YOUR_MODULE/internal/auth"
+
+type NewToolOptions struct {
+	withRequireConfirmation bool
+}
+
+type NewToolOption func(*NewToolOptions)
+
+func WithRequireConfirmation() NewToolOption {
+	return func(options *NewToolOptions) {
+		options.withRequireConfirmation = true
+	}
+}
+
+type WithSchema interface {
+	JsonSchema() *jsonschema.Schema
+}
+
+type emptyResponse struct{}
+
+func (emptyResponse) JsonSchema() *jsonschema.Schema {
+	return &jsonschema.Schema{Type: "object", Description: "Empty response"}
+}
+
+// NewTool wraps a synchronous RPC handler as an ADK function tool.
+// name must be snake_case and match how the model will call the tool.
+// description is usually the generated ToolsService_<Rpc>_FullMethodDescription.
+func NewTool[I WithSchema, O WithSchema](name, description string, method func(ctx context.Context, input I) (O, error), opts ...NewToolOption) tool.Tool {
+	var i I
+	var o O
+
+	options := &NewToolOptions{withRequireConfirmation: false}
+	for _, opt := range opts {
+		opt(options)
+	}
+	config := functiontool.Config{
+		Name:                name,
+		Description:         description,
+		InputSchema:         i.JsonSchema(),
+		OutputSchema:        o.JsonSchema(),
+		RequireConfirmation: options.withRequireConfirmation,
+	}
+	t, err := functiontool.New(config, func(tc tool.Context, input I) (O, error) {
+		ctx := auth.ForwardAuth(tc)
+		return method(ctx, input)
+	})
+	if err != nil {
+		alog.Fatalf(context.Background(), "failed to create tool %q: %v", name, err)
+		return nil
+	}
+	return t
+}
+
+// NewToolForEmpty wraps an RPC that returns google.protobuf.Empty.
+func NewToolForEmpty[I WithSchema](name, description string, method func(ctx context.Context, input I) (*emptypb.Empty, error), opts ...NewToolOption) tool.Tool {
+	var i I
+
+	options := &NewToolOptions{withRequireConfirmation: false}
+	for _, opt := range opts {
+		opt(options)
+	}
+	config := functiontool.Config{
+		Name:                name,
+		Description:         description,
+		InputSchema:         i.JsonSchema(),
+		OutputSchema:        emptyResponse{}.JsonSchema(),
+		RequireConfirmation: options.withRequireConfirmation,
+	}
+	t, err := functiontool.New(config, func(tc tool.Context, input I) (emptyResponse, error) {
+		ctx := auth.ForwardAuth(tc)
+		_, err := method(ctx, input)
+		return emptyResponse{}, err
+	})
+	if err != nil {
+		alog.Fatalf(context.Background(), "failed to create tool %q: %v", name, err)
+		return nil
+	}
+	return t
+}
+
+type Toolset struct {
+	name  string
+	tools []tool.Tool
+}
+
+// NewToolSet groups tools under a named toolset for llmagent.Config.Toolsets.
+func NewToolSet(name string, tools []tool.Tool) tool.Toolset {
+	return &Toolset{name: name, tools: tools}
+}
+
+func (t *Toolset) Name() string { return t.name }
+
+func (t *Toolset) Tools(_ agent.ReadonlyContext) ([]tool.Tool, error) {
+	return t.tools, nil
+}
