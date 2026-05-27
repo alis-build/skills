@@ -63,7 +63,7 @@ Wait for confirmation before writing Go that imports generated stubs.
 Generated code should include:
 
 - `ToolsService` server types and request/response messages (when using tools.proto)
-- `JsonSchema()` on tool messages when `json_schema.generate` is enabled — see **`json-schema.md`**
+- `JsonSchema()` on tool messages when `json_schema.generate` is enabled
 - `ToolsService_<Rpc>_FullMethodDescription` from RPC comments
 
 ## If code generation has not run

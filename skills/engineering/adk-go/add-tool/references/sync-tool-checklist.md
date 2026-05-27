@@ -2,7 +2,7 @@
 
 Use this checklist for each new **immediate-return** RPC on `ToolsService`. For long-running operations, stop here and open `../add-lro/SKILL.md`.
 
-Confirm paths with **`references/workspace.md`** / **`../../../references/alis-workspace.md`** before editing.
+Confirm paths with **`workspace.md`** / **`alis-workspace.md`** (same directory) before editing.
 
 ## Checklist
 
@@ -12,7 +12,7 @@ Confirm paths with **`references/workspace.md`** / **`../../../references/alis-w
    - Tool name will be **snake_case** derived from the RPC (e.g. `LookupTicket` → `lookup_ticket`).
    - Optionally refine fields with `(alis.open.options.v1.field).json_schema` (see **`references/json-schema.md`**).
 
-2. **define (user)** — Ask: **run a define on the package** **`<package from tools.proto>`**. **Stop.** No `go mod edit`, no `go get`, no Go. See **`../../../references/define-stubs.md`**.
+2. **define (user)** — Ask: **run a define on the package** **`<package from tools.proto>`**. **Stop.** No `go mod edit`, no `go get`, no Go. See **`define-stubs.md`**.
 
 3. **Install deps (user)** — Ask: **install the required dependencies**. Wait for confirmation.
 

@@ -2,7 +2,7 @@
 
 Per-tool checklist. Complete every step unless the RPC already exists from a prior pass.
 
-Read **`references/workspace.md`**. Proto + define order: **`../../../references/define-stubs.md`**.
+Read **`workspace.md`**. Proto + code generation order: **`define-stubs.md`**.
 
 ## 1. Proto (define repo)
 

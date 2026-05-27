@@ -1,0 +1,13 @@
+# Add to infra/main.tf — reference the scheduler module.
+
+module "alis_a2a_extension_scheduler_v1" {
+  source = "./modules/alis.a2a.extension.scheduler.v1"
+
+  alis_os_project              = var.ALIS_OS_PROJECT
+  alis_region                  = var.ALIS_REGION
+  alis_managed_spanner_project = var.ALIS_MANAGED_SPANNER_PROJECT
+  alis_managed_spanner_instance = var.ALIS_MANAGED_SPANNER_INSTANCE
+  alis_managed_spanner_db      = var.ALIS_MANAGED_SPANNER_DB
+  agent_service_name           = google_cloud_run_v2_service.agent.name
+  neuron                       = local.neuron
+}

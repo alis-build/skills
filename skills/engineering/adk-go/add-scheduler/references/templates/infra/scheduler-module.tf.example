@@ -1,0 +1,104 @@
+# Terraform module for A2A scheduler infra (Spanner + Cloud Tasks).
+# Place under infra/modules/alis.a2a.extension.scheduler.v1/main.tf
+# and reference from infra/main.tf.
+
+terraform {
+  required_providers {
+    alis = {
+      source = "alis-exchange/alis"
+    }
+  }
+}
+
+variable "alis_os_project" {
+  type = string
+}
+
+variable "alis_region" {
+  type = string
+}
+
+variable "alis_managed_spanner_project" {
+  type = string
+}
+
+variable "alis_managed_spanner_instance" {
+  type = string
+}
+
+variable "alis_managed_spanner_db" {
+  type = string
+}
+
+variable "agent_service_name" {
+  type = string
+}
+
+variable "neuron" {
+  type = string
+}
+
+# Allow the service account to invoke the agent Cloud Run service
+# so that Cloud Tasks can deliver scheduled invocations.
+resource "google_cloud_run_service_iam_member" "scheduler_invoker" {
+  service  = var.agent_service_name
+  location = var.alis_region
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:alis-build@${var.alis_os_project}.iam.gserviceaccount.com"
+}
+
+# Cloud Tasks queue for scheduled task delivery.
+# Name must match the Go serviceID + "-a2a-scheduler" pattern.
+resource "google_cloud_tasks_queue" "scheduler" {
+  name     = "${var.neuron}-a2a-scheduler"
+  location = var.alis_region
+}
+
+# Spanner table for scheduler cron state.
+# Uses the alis Terraform provider's spanner table resource.
+resource "alis_google_spanner_table" "crons" {
+  project         = var.alis_managed_spanner_project
+  instance        = var.alis_managed_spanner_instance
+  database        = var.alis_managed_spanner_db
+  name            = "${replace(var.alis_os_project, "-", "_")}_${replace(var.neuron, "-", "_")}_Crons"
+  prevent_destroy = false
+
+  schema = {
+    columns = [
+      {
+        name           = "key"
+        type           = "STRING"
+        is_primary_key = true
+        required       = true
+      },
+      {
+        name          = "Cron"
+        type          = "PROTO"
+        proto_package = "alis.a2a.extension.scheduler.v1.Cron"
+        required      = true
+      },
+      {
+        name          = "Policy"
+        type          = "PROTO"
+        proto_package = "google.iam.v1.Policy"
+        required      = false
+      },
+      {
+        name            = "create_time"
+        type            = "TIMESTAMP"
+        required        = false
+        is_computed     = true
+        computation_ddl = "TIMESTAMP_ADD(TIMESTAMP_SECONDS(Cron.create_time.seconds), INTERVAL CAST(FLOOR(Cron.create_time.nanos / 1000) AS INT64) MICROSECOND)"
+        is_stored       = true
+      },
+      {
+        name            = "update_time"
+        type            = "TIMESTAMP"
+        required        = false
+        is_computed     = true
+        computation_ddl = "TIMESTAMP_ADD(TIMESTAMP_SECONDS(Cron.update_time.seconds), INTERVAL CAST(FLOOR(Cron.update_time.nanos / 1000) AS INT64) MICROSECOND)"
+        is_stored       = true
+      }
+    ]
+  }
+}

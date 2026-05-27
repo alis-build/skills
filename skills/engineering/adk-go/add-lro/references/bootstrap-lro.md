@@ -2,12 +2,12 @@
 
 One-time setup after **add-tool** bootstrap (or equivalent: `internal/tools`, `tools.proto` with `json_schema.generate`). Adds infra, LRO client, conversation resume, and launcher wiring — no LRO tools registered yet.
 
-Read **`references/workspace.md`**, **`../../../references/alis-workspace.md`**, and **`../../../references/define-stubs.md`** first.
+Read **`workspace.md`**, **`alis-workspace.md`**, and **`define-stubs.md`** (same directory) first.
 
 ## Prerequisites
 
 - **add-tool** bootstrap complete, or equivalent tools package.
-- User runs **define** via Alis Build DBD — see **`../../../references/define-stubs.md`**.
+- User runs code generation — see **`define-stubs.md`**.
 - Agent does **not** run define or `terraform apply` unless the user asks.
 
 ## Steps
@@ -17,7 +17,7 @@ Read **`references/workspace.md`**, **`../../../references/alis-workspace.md`**,
 | 0 | Confirm `internal/tools`, `tools.proto`, entrypoint wired with `tools.MyTools()` | `../add-tool/references/bootstrap.md` |
 | 1 | Provision LRO infra + reasoning-engine `deployment_spec` LRO envs | `references/infra-lro.md`, `templates/infra/` |
 | 2 | Add `import "google/longrunning/operations.proto"` to `tools.proto` if absent | — |
-| 3 | Ask user: **run a define on the package** `<package from tools.proto>` or **on the neuron** | `../../../references/define-stubs.md` |
+| 3 | Ask user: **run a define on the package** `<package from tools.proto>` or **on the neuron** | `define-stubs.md` |
 | 4 | **Stop** — no `go.mod`, no Go yet | define-stubs |
 | 5 | Ask user: **install required dependencies** (see below) | define-stubs |
 | 6 | Merge `NewLROTool` + `googleLongrunningOperation` into `internal/tools/tools.go` | `templates/tools.go.lro-snippet.example` |

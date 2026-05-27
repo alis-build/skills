@@ -15,7 +15,7 @@ disable-model-invocation: true
 
 LRO tools return a `google.longrunning.Operation` handle immediately; work continues via Cloud Tasks and Spanner (`alis.lro.v2`). When started from the ADK web UI, completed operations can resume the chat session via `POST /api/run`.
 
-**Start with `references/workspace.md`**, **`../../references/alis-workspace.md`**, and **`../../references/define-stubs.md`**. If **`.alis/agents/AGENTS.md`** exists, read it first. Discover this neuron’s define/build/infra paths from open folders — never from another product or chat.
+**Start with `references/workspace.md`**, **`references/alis-workspace.md`**, and **`references/define-stubs.md`**. Discover this agent’s code generation and build paths from open folders — never from another product or chat.
 
 ## When to use
 
@@ -32,7 +32,7 @@ See the skill **description** (primary trigger). LRO proto + infra + InitLRO + o
 ## Prerequisites
 
 - **add-tool** bootstrap (recommended): `tools.proto`, `internal/tools`, entrypoint `tools.MyTools()`. If missing, run **add-tool** Phase A first.
-- User runs **define** via Alis Build DBD — **`../../references/define-stubs.md`**.
+- User runs code generation — **`references/define-stubs.md`**.
 - **Never run define yourself.**
 
 ## Architecture
@@ -73,6 +73,37 @@ For each tool:
 
 Naming: tool name **snake_case** (e.g. `run_deep_research`). Resume path: **unique kebab-case string** per tool (e.g. `run-deep-research`).
 
+## Deployment: launcher CLI args
+
+The ADK binary uses **positional CLI args** to activate each sublauncher at runtime. Registering `weblro.NewLauncher` in Go is not enough — you must also pass `lro` in the command args when running the binary.
+
+Only include sublauncher args for sublaunchers the agent actually uses. The `lro` sublauncher requires `api` to also be active (for `/api/run` resume). Other sublaunchers (`webui`, `agui`, `scheduler`, etc.) are independent — include them only if the agent uses them.
+
+### Dockerfile
+
+```dockerfile
+CMD ["/app/main", "web", "-port", "8080", "api", "lro"]
+```
+
+### Cloud Run (Terraform)
+
+```hcl
+containers {
+  command = ["/app/main"]
+  args    = ["web", "-port", "8080", "api", "lro"]
+}
+```
+
+### Minimal vs full example
+
+The above shows only what LRO requires. A typical agent with web UI might look like:
+
+```
+args = ["web", "-port", "8080", "webui", "-api_server_address=/api", "api", "lro"]
+```
+
+Add other sublaunchers (`webui`, `agui`, `scheduler`, etc.) only if the agent uses them — they are not LRO prerequisites.
+
 ## Verification (always)
 
 - [ ] `tools.proto` LRO RPC has `google.longrunning.operation_info`
@@ -81,6 +112,7 @@ Naming: tool name **snake_case** (e.g. `run_deep_research`). Resume path: **uniq
 - [ ] `lroServiceID` matches infra neuron id
 - [ ] Reasoning engine `deployment_spec` has LRO env vars (`references/infra-lro.md`)
 - [ ] Each LRO tool has unique `AddResumableHandler` path
+- [ ] Dockerfile CMD and Cloud Run args include `lro` (and `api` for resume)
 - [ ] `go build ./...` passes
 - [ ] `ResumeAfterOperation` called when ADK chat should continue after completion
 
@@ -94,6 +126,7 @@ Naming: tool name **snake_case** (e.g. `run_deep_research`). Resume path: **uniq
 - Using `NewTool` instead of `NewLROTool` for Operation-returning RPCs.
 - Forgetting `ResumeAfterOperation` when the web session should get the final function response.
 - Missing LRO env vars on `google_vertex_ai_reasoning_engine` `deployment_spec` — `lro.NewFromEnv` fails at runtime on Agent Engine.
+- Missing `lro` in Dockerfile CMD or Cloud Run args — the sublauncher is registered in Go but won’t activate without the CLI arg.
 - Implementing sync tools here — use **add-tool**.
 
 ## Templates index
@@ -105,8 +138,8 @@ Naming: tool name **snake_case** (e.g. `run_deep_research`). Resume path: **uniq
 | `references/lro-tool-checklist.md` | Per-tool steps |
 | `references/infra-lro.md` | alis.lro.v2 Terraform module |
 | `references/resume-flow.md` | /api/run resume semantics |
-| `../../references/define-stubs.md` | define → install deps → Go (shared) |
-| `../../references/alis-workspace.md` | Build vs define repos (shared) |
+| `references/define-stubs.md` | Code generation → install deps → Go |
+| `references/alis-workspace.md` | Agent workspace layout and path discovery |
 | `../add-tool/references/json-schema.md` | Input schema options |
 | `references/templates/tools.proto.lro-snippet.example` | LRO RPC + messages |
 | `references/templates/tools.go.lro-snippet.example` | NewLROTool |

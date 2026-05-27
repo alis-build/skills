@@ -2,12 +2,12 @@
 
 One-time setup before adding individual tools. Complete every step unless your project already has an equivalent.
 
-Read **`references/workspace.md`**, **`../../../references/alis-workspace.md`**, and **`../../../references/define-stubs.md`** first (and **`.alis/agents/AGENTS.md`** when present).
+Read **`workspace.md`**, **`alis-workspace.md`**, and **`define-stubs.md`** (same directory) first.
 
 ## Prerequisites
 
 - Agent module with `go.mod` and an ADK agent entrypoint (`main.go` or equivalent).
-- User runs **define** via Alis Build’s DBD toolchain to generate stubs. See **`../../../references/define-stubs.md`**.
+- User runs code generation to produce stubs. See **`define-stubs.md`**.
 - JSON Schema proto options: **`references/json-schema.md`**.
 - LRO RPCs may share `ToolsService` in `tools.proto` (default); use the **add-lro** skill for those. A separate proto file is optional if your team splits contracts.
 
@@ -16,8 +16,8 @@ Read **`references/workspace.md`**, **`../../../references/alis-workspace.md`**,
 | # | Action | Template |
 |---|--------|----------|
 | 1 | Add `tools.proto` with `import "alis/open/options/v1/options.proto"` and file option `json_schema.generate = true`. Start from the example. | `references/templates/tools.proto.example` |
-| 2 | Ask user to **run a define on the neuron** (bootstrap) or **on the package** **`<package from tools.proto>`**. Wait. Do not touch `go.mod` yet. | `../../../references/define-stubs.md` |
-| 3 | Ask user to **install required dependencies**. Wait. | `../../../references/define-stubs.md` |
+| 2 | Ask user to **run a define on the neuron** (bootstrap) or **on the package** **`<package from tools.proto>`**. Wait. Do not touch `go.mod` yet. | `define-stubs.md` |
+| 3 | Ask user to **install required dependencies**. Wait. | `define-stubs.md` |
 | 4 | Create `internal/tools/tools.go` (ADK bridge: `NewTool`, `NewToolForEmpty`, `NewToolSet`). Fix the `auth` import path. | `references/templates/tools.go.example` |
 | 5 | Create `internal/tools/service.go` with `myToolsService`, empty or example `MyTools()`. Fix the `pb` import. | `references/templates/service.go.example` |
 | 6 | If the project has no auth helper: copy `internal/auth/auth.go` from the auth template and wire `ForwardAuth`. | `references/templates/auth.go.example` |

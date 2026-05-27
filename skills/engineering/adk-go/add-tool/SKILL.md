@@ -15,7 +15,7 @@ description: >
 
 Proto comments become the model-facing tool description and JSON Schema. Handlers run in-process via ADK `functiontool`; the same service methods can later back gRPC if you register them.
 
-**Start with `references/workspace.md`**, **`../../references/alis-workspace.md`**, and **`../../references/define-stubs.md`**. If **`.alis/agents/AGENTS.md`** exists, read it for this product’s repo roots. Discover this neuron’s define/build paths from open folders — never from another product or chat.
+**Start with `references/workspace.md`**, **`references/alis-workspace.md`**, and **`references/define-stubs.md`**. Discover this agent’s code generation and build paths from open folders — never from another product or chat.
 
 ## When to use
 
@@ -44,7 +44,7 @@ Why proto-first: RPC comments become `ToolsService_<Rpc>_FullMethodDescription`;
 
 **Never run define yourself** — it is part of Alis Build’s define-build-deploy (DBD) toolchain, not an agent capability.
 
-After proto edits, follow **`../../references/define-stubs.md`** in order: ask **run a define on the package** (or neuron) → **stop** (no `go.mod`, no Go) → ask user to **install required dependencies** → then implement Go.
+After proto edits, follow **`references/define-stubs.md`** in order: ask **run a define on the package** (or neuron) → **stop** (no `go.mod`, no Go) → ask user to **install required dependencies** → then implement Go.
 
 ## Phase A — Bootstrap (one-time)
 
@@ -53,7 +53,7 @@ Read and follow **`references/bootstrap.md`**.
 Summary:
 
 1. Add `tools.proto` from **`references/templates/tools.proto.example`** with `json_schema.generate` enabled (see **`references/json-schema.md`**).
-2. Ask the user to **run a define on the neuron** (bootstrap) or **run a define on the package** `<package from tools.proto>`; wait (**`../../references/define-stubs.md`**).
+2. Ask the user to **run a define on the neuron** (bootstrap) or **run a define on the package** `<package from tools.proto>`; wait (**`references/define-stubs.md`**).
 3. Ask the user to **install required dependencies**; wait.
 4. Copy **`references/templates/tools.go.example`** → `internal/tools/tools.go`.
 5. Copy **`references/templates/service.go.example`** → `internal/tools/service.go` (start with empty `MyTools()` if only wiring).
@@ -108,8 +108,8 @@ Group tools with `NewToolSet` and set `llmagent.Config.Toolsets` instead of (or 
 | File | Purpose |
 |------|---------|
 | `references/workspace.md` | Quick path discovery checklist |
-| `../../references/alis-workspace.md` | Alis build vs define repos, neuron layout (shared) |
-| `../../references/define-stubs.md` | define → install deps → then Go (strict order, shared) |
+| `references/alis-workspace.md` | Alis build vs define repos, neuron layout (shared) |
+| `references/define-stubs.md` | define → install deps → then Go (strict order, shared) |
 | `references/json-schema.md` | JSON Schema proto options (applied when define runs) |
 | `references/templates/tools.proto.example` | Starter ToolsService + messages |
 | `references/templates/tools.go.example` | NewTool, NewToolForEmpty, NewToolSet |

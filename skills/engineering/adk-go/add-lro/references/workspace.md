@@ -1,6 +1,6 @@
 # Find the correct agent and proto paths (LRO)
 
-Read **`../../../references/alis-workspace.md`** and **`../../../references/define-stubs.md`**. If **`.alis/agents/AGENTS.md`** exists, read it first for this product’s repo roots.
+Read **`alis-workspace.md`** and **`define-stubs.md`** (same directory) for project layout and code generation workflow.
 
 If the product workspace provides **`.alis/agents/AGENTS.md`**, read it first — then use the steps below.
 

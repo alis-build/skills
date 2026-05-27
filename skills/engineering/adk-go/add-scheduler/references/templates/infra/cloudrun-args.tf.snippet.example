@@ -1,0 +1,17 @@
+# Cloud Run container args — add "scheduler" and "-app_name=..." to activate the scheduler sublauncher.
+# The -app_name flag must match llmagent.Config.Name (the adkAppName const in main.go).
+#
+# Only include sublauncher args for sublaunchers the agent actually uses.
+# The scheduler does not depend on webui, api, lro, or agui.
+
+# Minimal (scheduler only):
+containers {
+  command = ["/app/main"]
+  args    = ["web", "-port", "8080", "scheduler", "-app_name=REPLACE_WITH_ADK_APP_NAME"]
+}
+
+# Typical (with other sublaunchers the agent uses):
+# containers {
+#   command = ["/app/main"]
+#   args    = ["web", "-port", "8080", "webui", "-api_server_address=/api", "api", "lro", "scheduler", "-app_name=REPLACE_WITH_ADK_APP_NAME"]
+# }

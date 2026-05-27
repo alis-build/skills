@@ -15,7 +15,7 @@ disable-model-invocation: true
 
 Agent **skills** are markdown instruction packs the model loads on demand (`load_skill`, etc.). They live under `internal/skills/skills/<name>/SKILL.md`, are embedded into the binary, and exposed through ADK **`skilltoolset`** on `llmagent.Config.Toolsets` — separate from proto-backed **Tools** (`add-tool` / `add-lro`).
 
-Read **`../../references/alis-workspace.md`** for neuron paths. If **`.alis/agents/AGENTS.md`** exists, read it first.
+Identify the agent module (`go.mod`) and entrypoint before editing. In Alis Build projects, read **`.alis/agents/AGENTS.md`** if it exists for product repo roots and neuron paths.
 
 ## When to use
 

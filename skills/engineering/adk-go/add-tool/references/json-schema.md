@@ -1,6 +1,6 @@
 # JSON Schema options (`protoc-gen-go-jsonschema`)
 
-ADK tools need `JsonSchema()` on request/response messages. Set options in **`tools.proto`**; they take effect when the user runs **define** through Alis Build’s DBD pipeline (see **`../../../references/define-stubs.md`**).
+ADK tools need `JsonSchema()` on request/response messages. Set options in **`tools.proto`**; they take effect when the user runs code generation (see **`define-stubs.md`**).
 
 Plugin reference: [protoc-gen-go-jsonschema — field-level options](https://github.com/alis-exchange/protoc-gen-go-jsonschema#field-level-options).
 
