@@ -7,7 +7,8 @@ description: >
   the user mentions long-running tools, async tools, deep research operations, lroresume, or work
   that returns an operation handle—even if they do not say LRO or longrunning. Do not use for
   immediate-return sync tools (add-tool), AG-UI (add-agui), or embedded SKILL.md skills
-  (add-agent-skills). User runs define then installs dependencies; agent must not run define.
+  (add-agent-skills). Code generation (define) is a user-side operation; user runs define then
+  installs dependencies.
 disable-model-invocation: true
 ---
 
@@ -33,7 +34,7 @@ See the skill **description** (primary trigger). LRO proto + infra + InitLRO + o
 
 - **add-tool** bootstrap (recommended): `tools.proto`, `internal/tools`, entrypoint `tools.MyTools()`. If missing, run **add-tool** Phase A first.
 - User runs code generation — **`references/define-stubs.md`**.
-- **Never run define yourself.**
+- Code generation (define) is a user-side operation — the agent does not have access to the build pipeline.
 
 ## Architecture
 
@@ -140,7 +141,7 @@ Add other sublaunchers (`webui`, `agui`, `scheduler`, etc.) only if the agent us
 | `references/resume-flow.md` | /api/run resume semantics |
 | `references/define-stubs.md` | Code generation → install deps → Go |
 | `references/alis-workspace.md` | Agent workspace layout and path discovery |
-| `../add-tool/references/json-schema.md` | Input schema options |
+| `references/json-schema.md` | Input schema options |
 | `references/templates/tools.proto.lro-snippet.example` | LRO RPC + messages |
 | `references/templates/tools.go.lro-snippet.example` | NewLROTool |
 | `references/templates/grpc.go.example` | InitLRO / RegisterGRPC |

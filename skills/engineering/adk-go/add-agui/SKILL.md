@@ -6,7 +6,7 @@ description: >
   protocol, adding a sublauncher beside webui/webapi, or when the user mentions CopilotKit, AG-UI,
   ag-ui, or frontend streaming to the agent—even if they do not say webagui or launchers/agui. Do
   not use for tools.proto or ToolsService (add-tool), long-running operations (add-lro), or embedded
-  runtime skills (add-agent-skills). No proto or define step; service id must match infra neuron id.
+  runtime skills (add-agent-skills). No proto or define step; service id must match infra config.
 disable-model-invocation: true
 ---
 
@@ -105,3 +105,9 @@ Add other sublaunchers (`webui`, `api`, `lro`, `scheduler`, etc.) only if the ag
 - Adding AG-UI outside `web.NewLauncher` — it must be a **sibling** sublauncher with `webui`, `webapi`, `weblro`, etc.
 - Running `go get` before confirming whether `go.alis.build/adk/launchers` is already required — ask user to install dependencies when unsure.
 - Missing `agui` in Dockerfile CMD or Cloud Run args — the sublauncher is registered in Go but won't activate without the CLI arg.
+
+## Templates index
+
+| File | Purpose |
+|------|---------|
+| `references/templates/main-agui-wiring.go.example` | Entrypoint AG-UI sublauncher wiring |

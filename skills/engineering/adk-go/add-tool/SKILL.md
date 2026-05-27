@@ -7,8 +7,8 @@ description: >
   tool, expose a capability to the model, tools.proto, JsonSchema, or register a function
   tool—even if they do not say proto, ToolsService, or define. Do not use for
   google.longrunning.Operation or async jobs (add-lro), AG-UI launcher (add-agui), or embedded
-  markdown skills under internal/skills (add-agent-skills). Agent must not run define; user runs
-  define then installs dependencies.
+  markdown skills under internal/skills (add-agent-skills). Code generation (define) is a user-side
+  operation; user runs define then installs dependencies.
 ---
 
 # Add synchronous ADK tools
@@ -42,7 +42,7 @@ tools.proto  →  define (user, Alis Build DBD)  →  generated Go (JsonSchema +
 
 Why proto-first: RPC comments become `ToolsService_<Rpc>_FullMethodDescription`; request/response shapes come from `JsonSchema()` after the user runs **define** (options in **`references/json-schema.md`**).
 
-**Never run define yourself** — it is part of Alis Build’s define-build-deploy (DBD) toolchain, not an agent capability.
+Code generation (define) is a user-side operation — the agent does not have access to the build pipeline, so always ask the user to run it.
 
 After proto edits, follow **`references/define-stubs.md`** in order: ask **run a define on the package** (or neuron) → **stop** (no `go.mod`, no Go) → ask user to **install required dependencies** → then implement Go.
 
@@ -97,7 +97,7 @@ Group tools with `NewToolSet` and set `llmagent.Config.Toolsets` instead of (or 
 ## Pitfalls
 
 - Editing a `tools.proto` or agent module that is not in the user’s current workspace — read **`references/workspace.md`**.
-- Running define yourself — you cannot; ask the user.
+- Running define yourself — the agent does not have access to the build pipeline; ask the user.
 - `go mod edit` / `go get` protobuf **before** define and install — stubs are not published yet.
 - Continuing Go work before define **and** dependency install finish.
 - LRO tools → use add-lro; sync and LRO may share `tools.proto`.

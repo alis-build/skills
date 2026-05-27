@@ -14,7 +14,7 @@ Read **`workspace.md`**, **`alis-workspace.md`**, and **`define-stubs.md`** (sam
 
 | # | Action | Template / doc |
 |---|--------|----------------|
-| 0 | Confirm `internal/tools`, `tools.proto`, entrypoint wired with `tools.MyTools()` | `../add-tool/references/bootstrap.md` |
+| 0 | Confirm `internal/tools`, `tools.proto`, entrypoint wired with `tools.MyTools()` — if missing, bootstrap tools first (add-tool skill) | — |
 | 1 | Provision LRO infra + reasoning-engine `deployment_spec` LRO envs | `references/infra-lro.md`, `templates/infra/` |
 | 2 | Add `import "google/longrunning/operations.proto"` to `tools.proto` if absent | — |
 | 3 | Ask user: **run a define on the package** `<package from tools.proto>` or **on the neuron** | `define-stubs.md` |
