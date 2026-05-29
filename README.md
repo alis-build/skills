@@ -14,7 +14,7 @@ Each skill is a directory with a `SKILL.md` file containing YAML frontmatter and
 
 This repository contains workflow skills for **ADK Go agent development** on the Alis platform. They guide agents through concrete tasks such as adding synchronous tools, wiring LRO infrastructure, enabling AG-UI clients, and embedding runtime skills inside the Go binary.
 
-Each skill is self-contained under `<category>/<domain>/<skill-name>/` with:
+Each installable skill is self-contained under `skills/<category>/<domain>/<skill-name>/` with:
 
 - **`SKILL.md`** — agent-readable instructions and metadata
 - **`references/`** — checklists, workspace guides, and code or infra templates
@@ -23,6 +23,14 @@ Each skill is self-contained under `<category>/<domain>/<skill-name>/` with:
 These skills assume work inside an Alis ADK neuron workspace. Agents should discover paths from open folders and `.alis/agents/AGENTS.md` when present — not from hard-coded product names.
 
 ## Install
+
+List available skills:
+
+```bash
+npx skills add alis-build/skills --list
+```
+
+Install all skills from this repository:
 
 ```bash
 npx skills add alis-build/skills
@@ -59,13 +67,13 @@ After installing, mention the skill in your prompt:
 
 ADK Go skills for building [go.alis.build/adk](https://go.alis.build/adk) agents.
 
-| Skill                | Directory                              | Description                                                                                                              |
-| -------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| **add-tool**         | `engineering/adk-go/add-tool/`         | Add synchronous ADK tools from `tools.proto`, define-generated stubs, and `functiontool` wrappers                      |
-| **add-lro**          | `engineering/adk-go/add-lro/`          | Add long-running tools backed by `google.longrunning.Operation`, `alis.lro.v2` infra, and resumable chat sessions        |
-| **add-agui**         | `engineering/adk-go/add-agui/`         | Wire the AG-UI web sublauncher for CopilotKit and other AG-UI SSE clients alongside the existing web launcher            |
-| **add-scheduler**    | `engineering/adk-go/add-scheduler/`    | Wire the A2A scheduler extension with Spanner-backed scheduling and Cloud Tasks delivery for recurring agent invocations |
-| **add-agent-skills** | `engineering/adk-go/add-agent-skills/` | Embed runtime `SKILL.md` packs under `internal/skills/` via `skilltoolset` and wire them into `llmagent.Config.Toolsets` |
+| Skill                | Directory                                        | Description                                                                                                              |
+| -------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| **add-tool**         | `skills/engineering/adk-go/add-tool/`         | Add synchronous ADK tools from `tools.proto`, define-generated stubs, and `functiontool` wrappers                      |
+| **add-lro**          | `skills/engineering/adk-go/add-lro/`          | Add long-running tools backed by `google.longrunning.Operation`, `alis.lro.v2` infra, and resumable chat sessions        |
+| **add-agui**         | `skills/engineering/adk-go/add-agui/`         | Wire the AG-UI web sublauncher for CopilotKit and other AG-UI SSE clients alongside the existing web launcher            |
+| **add-scheduler**    | `skills/engineering/adk-go/add-scheduler/`    | Wire the A2A scheduler extension with Spanner-backed scheduling and Cloud Tasks delivery for recurring agent invocations |
+| **add-agent-skills** | `skills/engineering/adk-go/add-agent-skills/` | Embed runtime `SKILL.md` packs under `internal/skills/` via `skilltoolset` and wire them into `llmagent.Config.Toolsets` |
 
 ### Which skill to use
 
@@ -81,7 +89,7 @@ These skills are complementary but not interchangeable. Each `SKILL.md` includes
 
 ## Creating a skill
 
-Copy [`template/SKILL.md`](template/SKILL.md) into a new directory under `<category>/<domain>/<skill-name>/` and fill in the frontmatter and instructions.
+Copy [`skills/template/SKILL.template.md`](skills/template/SKILL.template.md) to `skills/<category>/<domain>/<skill-name>/SKILL.md` and fill in the frontmatter and instructions. The template is not installed by the CLI (only files named `SKILL.md` are discovered).
 
 ```markdown
 ---
@@ -124,41 +132,44 @@ Contributors can use Anthropic's [**skill-creator**](https://www.skills.sh/anthr
 npx skills add https://github.com/anthropics/skills --skill skill-creator
 ```
 
-Then ask your agent to use skill-creator — for example, to add a new ADK Go skill from [`template/SKILL.md`](template/SKILL.md), or to refine an existing skill's `description` and eval cases under `engineering/adk-go/`.
+Then ask your agent to use skill-creator — for example, to add a new ADK Go skill from [`skills/template/SKILL.template.md`](skills/template/SKILL.template.md), or to refine an existing skill's `description` and eval cases under `skills/engineering/adk-go/`.
 
 ## Repository structure
+
+Installable skills live under `skills/` so the [skills CLI](https://github.com/vercel-labs/skills) can discover them. Use `SKILL.template.md` for the starter template (not `SKILL.md`) so nested paths like `skills/engineering/adk-go/<skill-name>/` are included when the CLI scans the repo.
 
 ```
 .
 ├── README.md
 ├── LICENSE
-├── template/
-│   └── SKILL.md              # starter template for new skills
-└── engineering/
-    └── adk-go/
-        ├── add-tool/
-        │   ├── SKILL.md
-        │   ├── evals/
-        │   └── references/
-        ├── add-lro/
-        │   ├── SKILL.md
-        │   ├── evals/
-        │   └── references/
-        ├── add-agui/
-        │   ├── SKILL.md
-        │   ├── evals/
-        │   └── references/
-        ├── add-scheduler/
-        │   ├── SKILL.md
-        │   ├── evals/
-        │   └── references/
-        └── add-agent-skills/
-            ├── SKILL.md
-            ├── evals/
-            └── references/
+└── skills/
+    ├── template/
+    │   └── SKILL.template.md   # copy to SKILL.md when authoring; not installed by CLI
+    └── engineering/
+        └── adk-go/
+            ├── add-tool/
+            │   ├── SKILL.md
+            │   ├── evals/
+            │   └── references/
+            ├── add-lro/
+            │   ├── SKILL.md
+            │   ├── evals/
+            │   └── references/
+            ├── add-agui/
+            │   ├── SKILL.md
+            │   ├── evals/
+            │   └── references/
+            ├── add-scheduler/
+            │   ├── SKILL.md
+            │   ├── evals/
+            │   └── references/
+            └── add-agent-skills/
+                ├── SKILL.md
+                ├── evals/
+                └── references/
 ```
 
-Skills are grouped by category under `engineering/`. Browse existing skills for patterns before authoring a new one.
+Skills are grouped by category under `skills/engineering/`. Browse existing skills for patterns before authoring a new one.
 
 ## Learn more
 
