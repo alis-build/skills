@@ -1,5 +1,5 @@
 ---
-name: add-lro
+name: adk-add-lro
 description: >
   Adds long-running ADK tools backed by google.longrunning.Operation, go.alis.build/lro/v2, alis.lro.v2
   infra, weblro launcher, resumable handlers, and /api/run conversation resume. Use when bootstrapping
