@@ -1,5 +1,5 @@
 ---
-name: add-scheduler
+name: adk-add-scheduler
 description: >
   Wires the A2A scheduler extension (go.alis.build/a2a/extension/scheduler, webscheduler.NewLauncher)
   into an ADK agent entrypoint with Spanner-backed scheduling, Cloud Tasks delivery, and gRPC

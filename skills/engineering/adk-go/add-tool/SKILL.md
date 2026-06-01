@@ -1,5 +1,5 @@
 ---
-name: add-tool
+name: adk-add-tool
 description: >
   Adds synchronous ADK tools using proto-first tools.proto, define-generated stubs, and
   functiontool wrappers (NewTool, MyTools). Use when bootstrapping internal/tools, adding a

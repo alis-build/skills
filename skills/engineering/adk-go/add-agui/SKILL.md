@@ -1,5 +1,5 @@
 ---
-name: add-agui
+name: adk-add-agui
 description: >
   Wires the AG-UI web sublauncher (go.alis.build/adk/launchers/agui, webagui.NewLauncher) into an
   ADK agent entrypoint for CopilotKit and other AG-UI SSE clients. Use when enabling the AG-UI

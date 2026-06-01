@@ -1,5 +1,5 @@
 ---
-name: add-agent-skills
+name: adk-add-agent-skills
 description: >
   Embeds ADK runtime agent skills (markdown SKILL.md under internal/skills/skills/) via skilltoolset
   and wires them into llmagent.Config.Toolsets so the model can load_skill. Use when bootstrapping
