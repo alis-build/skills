@@ -1,8 +1,18 @@
-# skills
+<p align="center">
+  <img src="assets/logo.svg" alt="Alis Build logo" width="96" height="96">
+</p>
 
-> **Note:** This repository contains Alis skills for building [ADK Go](https://go.alis.build/adk) agents. For the cross-agent Agent Skills standard, see [agentskills.io](https://agentskills.io).
+<h1 align="center">Alis Build Skills</h1>
 
-[![skills.sh](https://skills.sh/alis-build/skills)](https://skills.sh/alis-build/skills)
+<p align="center">
+  Agent skills for building <a href="https://go.alis.build/adk">ADK Go</a> agents on the Alis platform.
+</p>
+
+<p align="center">
+  <a href="https://skills.sh/alis-build/skills"><img src="https://skills.sh/alis-build/skills" alt="Install via skills.sh"></a>
+</p>
+
+> **Note:** For the cross-agent Agent Skills standard, see [agentskills.io](https://agentskills.io).
 
 ## What are skills?
 
@@ -22,7 +32,7 @@ Each installable skill is self-contained under `skills/<category>/<domain>/<skil
 
 These skills assume work inside an Alis ADK neuron workspace. Agents should discover paths from open folders and `.alis/agents/AGENTS.md` when present — not from hard-coded product names.
 
-## Install
+## Installation
 
 List available skills:
 
@@ -55,7 +65,7 @@ npx skills add alis-build/skills --skill add-tool
 
 Supported agents include **Cursor**, **Codex**, **Claude Code**, **OpenCode**, **Windsurf**, and [others](https://github.com/vercel-labs/skills#supported-agents).
 
-### Example usage
+### Usage
 
 After installing, mention the skill in your prompt:
 
@@ -63,13 +73,13 @@ After installing, mention the skill in your prompt:
 
 > Wire AG-UI for CopilotKit using the add-agui skill.
 
-## Skills
+## Available skills
 
 ADK Go skills for building [go.alis.build/adk](https://go.alis.build/adk) agents.
 
-| Skill                | Directory                                        | Description                                                                                                              |
-| -------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
-| **add-tool**         | `skills/engineering/adk-go/add-tool/`         | Add synchronous ADK tools from `tools.proto`, define-generated stubs, and `functiontool` wrappers                      |
+| Skill                | Directory                                     | Description                                                                                                              |
+| -------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| **add-tool**         | `skills/engineering/adk-go/add-tool/`         | Add synchronous ADK tools from `tools.proto`, define-generated stubs, and `functiontool` wrappers                        |
 | **add-lro**          | `skills/engineering/adk-go/add-lro/`          | Add long-running tools backed by `google.longrunning.Operation`, `alis.lro.v2` infra, and resumable chat sessions        |
 | **add-agui**         | `skills/engineering/adk-go/add-agui/`         | Wire the AG-UI web sublauncher for CopilotKit and other AG-UI SSE clients alongside the existing web launcher            |
 | **add-scheduler**    | `skills/engineering/adk-go/add-scheduler/`    | Wire the A2A scheduler extension with Spanner-backed scheduling and Cloud Tasks delivery for recurring agent invocations |
@@ -142,6 +152,8 @@ Installable skills live under `skills/` so the [skills CLI](https://github.com/v
 .
 ├── README.md
 ├── LICENSE
+├── assets/
+│   └── logo.svg
 └── skills/
     ├── template/
     │   └── SKILL.template.md   # copy to SKILL.md when authoring; not installed by CLI
