@@ -8,7 +8,6 @@ description: >
   specialized agent instructions—even if they do not say skilltoolset or Toolsets. Do not use for
   Cursor/build skills under neuron .agents/skills/ (use those separately) or for proto function tools
   (add-tool / add-lro). No proto or define step.
-disable-model-invocation: true
 ---
 
 # Add agent skills (skill toolset)
@@ -25,7 +24,7 @@ See the skill **description** (primary trigger). In short: runtime `internal/ski
 
 | Need | Use instead |
 |------|-------------|
-| Sync / LRO RPC tools | `../add-tool/SKILL.md`, `../add-lro/SKILL.md` |
+| Sync / LRO RPC tools | **add-tool**, **add-lro** |
 | Cursor IDE skills under `.agents/skills/` | Different system — this skill is **runtime** skills inside the Go agent |
 | **define** / `tools.proto` | Not required |
 

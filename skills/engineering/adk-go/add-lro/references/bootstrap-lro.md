@@ -2,7 +2,7 @@
 
 One-time setup after **add-tool** bootstrap (or equivalent: `internal/tools`, `tools.proto` with `json_schema.generate`). Adds infra, LRO client, conversation resume, and launcher wiring — no LRO tools registered yet.
 
-Read **`workspace.md`**, **`alis-workspace.md`**, and **`define-stubs.md`** (same directory) first.
+Read **`workspace-lro.md`**, **`alis-workspace.md`**, and **`define-stubs.md`** (same directory) first.
 
 ## Prerequisites
 
@@ -23,7 +23,7 @@ Read **`workspace.md`**, **`alis-workspace.md`**, and **`define-stubs.md`** (sam
 | 6 | Merge `NewLROTool` + `googleLongrunningOperation` into `internal/tools/tools.go` | `templates/tools.go.lro-snippet.example` |
 | 7 | Add `internal/tools/grpc.go` with `InitLRO` / `RegisterGRPC` | `templates/grpc.go.example` |
 | 8 | Copy `internal/lroresume/` package | `templates/lroresume/` |
-| 9 | Set `DefaultAppName` and `DefaultNeuron` in `lroresume/run_api.go` | workspace.md |
+| 9 | Set `DefaultAppName` and `DefaultNeuron` in `lroresume/run_api.go` | workspace-lro.md |
 | 10 | Wire entrypoint: `lroServiceID`, `MustInitLRO`, `weblro.NewLauncher` | `templates/main-lro-wiring.go.example` |
 | 11 | `go build ./...` | — |
 

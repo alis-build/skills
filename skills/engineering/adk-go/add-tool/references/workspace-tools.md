@@ -1,4 +1,4 @@
-# Find the correct agent and proto paths
+# Find the correct agent and proto paths (Tools)
 
 Read **`alis-workspace.md`** and **`define-stubs.md`** (same directory) for project layout and code generation workflow.
 

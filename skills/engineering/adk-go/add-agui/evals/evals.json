@@ -10,7 +10,8 @@
         "Imports go.alis.build/adk/launchers/agui",
         "webagui.NewLauncher inside web.NewLauncher",
         "Service id matches infra neuron not llmagent name only",
-        "No tools.proto or define step"
+        "Proto imports for scheduler and history Spanner tables when threads are used",
+        "User asked to run define after proto edits"
       ]
     },
     {
@@ -21,7 +22,22 @@
       "assertions": [
         "Reads neuron from infra locals",
         "Does not use add-tool or add-lro flows",
+        "Both scheduler.proto and history.proto imports when Spanner tables needed",
         "go build mentioned or implied"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "We have a bare ADK agent with only universal.NewLauncher — no webui, no webapi, nothing else. Add AG-UI support from scratch so we can connect a CopilotKit frontend.",
+      "expected_output": "webagui.NewLauncher inside web.NewLauncher, proto imports for Spanner tables, agui CLI arg in deployment config",
+      "files": [],
+      "assertions": [
+        "Imports go.alis.build/adk/launchers/agui",
+        "webagui.NewLauncher inside web.NewLauncher",
+        "Service id sourced from infra config",
+        "Both scheduler.proto and history.proto proto imports added",
+        "User asked to run define",
+        "agui added to Dockerfile CMD and Cloud Run args"
       ]
     }
   ]

@@ -6,8 +6,8 @@ description: >
   protocol, adding a sublauncher beside webui/webapi, or when the user mentions CopilotKit, AG-UI,
   ag-ui, or frontend streaming to the agent—even if they do not say webagui or launchers/agui. Do
   not use for tools.proto or ToolsService (add-tool), long-running operations (add-lro), or embedded
-  runtime skills (add-agent-skills). No proto or define step; service id must match infra config.
-disable-model-invocation: true
+  runtime skills (add-agent-skills). Requires proto imports for Spanner table provisioning
+  (see Proto imports for Spanner tables); service id must match infra config.
 ---
 
 # Add AG-UI launcher
@@ -18,15 +18,14 @@ Identify the agent module (`go.mod`) and the service id from infra config before
 
 ## When to use
 
-See the skill **description** (primary trigger). One import + sublauncher inside `web.NewLauncher`; no define.
+See the skill **description** (primary trigger). One import + sublauncher inside `web.NewLauncher`; proto imports + define for Spanner tables when threads/history are used.
 
 ## When not to use
 
 | Need | Use instead |
 |------|-------------|
-| Sync / LRO tools, protos | `../add-tool/SKILL.md`, `../add-lro/SKILL.md` |
+| Sync / LRO tools, protos | **add-tool**, **add-lro** |
 | Custom auth/history/A2UI interceptors (full stack) | Follow product-specific patterns beyond this minimal wiring |
-| **define** / `tools.proto` | Not required for AG-UI |
 
 ## Prerequisites
 
@@ -40,9 +39,10 @@ See the skill **description** (primary trigger). One import + sublauncher inside
 | 1 | Add import: `webagui "go.alis.build/adk/launchers/agui"` |
 | 2 | Set service id from infra config (Terraform `locals` or variables) — same value as `lroServiceID` or `weblro.WithServiceID` when LRO is wired |
 | 3 | Append sublauncher inside `web.NewLauncher(...)`: `webagui.NewLauncher("<service-id>", webagui.WithCORS(webagui.CORSConfig{}))` |
-| 4 | Add `agui` to the launcher CLI args in Dockerfile and Cloud Run / deployment config (see **Deployment: launcher CLI args** below) |
-| 5 | Ask user to install/upgrade `go.alis.build/adk/launchers` if needed |
-| 6 | `go build ./...` and run the agent locally to verify the AG-UI route is served |
+| 4 | Add proto imports for Spanner tables if not already present (see **Proto imports for Spanner tables** below); ask user to run define |
+| 5 | Add `agui` to the launcher CLI args in Dockerfile and Cloud Run / deployment config (see **Deployment: launcher CLI args** below) |
+| 6 | Ask user to install/upgrade `go.alis.build/adk/launchers` if needed |
+| 7 | `go build ./...` and run the agent locally to verify the AG-UI route is served |
 
 Template: **`references/templates/main-agui-wiring.go.example`**
 
@@ -55,6 +55,19 @@ If both LRO and AG-UI are enabled, use the **same** id for `weblro.WithServiceID
 ### Alis Build projects
 
 The service id is `local.neuron` (or `variables.neuron`) in `infra/`.
+
+## Proto imports for Spanner tables
+
+AG-UI thread/history storage uses Spanner tables provisioned through define. Add the following imports to **any one** proto in the agent's define package (typically `tools.proto`), even if nothing in the file references them:
+
+```protobuf
+import "alis/a2a/extension/scheduler/v1/scheduler.proto";
+import "alis/agui/history/v1/history.proto";
+```
+
+Add **both** imports whenever threads/history Spanner tables are required — even if the agent does not use the scheduler yet. The imports are for table provisioning, not for RPC definitions in your service.
+
+Ask the user to **run define** on the package (or neuron) after editing the proto. Add **both** imports whenever either thread/history or scheduler Spanner tables are needed — the same rule applies for **add-scheduler**.
 
 ## CORS and options
 
@@ -97,6 +110,7 @@ Add other sublaunchers (`webui`, `api`, `lro`, `scheduler`, etc.) only if the ag
 - [ ] AG-UI sublauncher is inside `web.NewLauncher(...)`, not outside `universal.NewLauncher`
 - [ ] Service id matches infra service identifier
 - [ ] Dockerfile CMD and Cloud Run args include `agui`
+- [ ] Proto imports for history (and scheduler) Spanner tables present; user ran define
 - [ ] Agent starts without launcher registration errors
 
 ## Pitfalls
@@ -105,6 +119,7 @@ Add other sublaunchers (`webui`, `api`, `lro`, `scheduler`, etc.) only if the ag
 - Adding AG-UI outside `web.NewLauncher` — it must be a **sibling** sublauncher with `webui`, `webapi`, `weblro`, etc.
 - Running `go get` before confirming whether `go.alis.build/adk/launchers` is already required — ask user to install dependencies when unsure.
 - Missing `agui` in Dockerfile CMD or Cloud Run args — the sublauncher is registered in Go but won't activate without the CLI arg.
+- Skipping proto imports for Spanner tables — thread/history storage will not be provisioned; add both `scheduler.proto` and `history.proto` imports and run define.
 
 ## Templates index
 

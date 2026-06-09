@@ -18,7 +18,7 @@ LRO tools require Spanner operation storage and a Cloud Tasks queue. Provision v
 | 2 | Add `module "alis_lro_v2"` block to `infra/main.tf` | `references/templates/infra/main.tf.snippet.example` |
 | 3 | Add Spanner DB admin IAM for alis-build if missing | `references/templates/infra/spanner_role.tf.example` |
 | 4 | Add LRO env vars to `google_vertex_ai_reasoning_engine` → `spec.deployment_spec` | `references/templates/infra/agent.tf.deployment_spec-lro-envs.example` |
-| 5 | Confirm `neuron = local.neuron` in the module block matches Go `lroServiceID` | `references/workspace.md` |
+| 5 | Confirm `neuron = local.neuron` in the module block matches Go `lroServiceID` | `references/workspace-lro.md` |
 
 ## Reasoning engine: LRO deployment env vars
 

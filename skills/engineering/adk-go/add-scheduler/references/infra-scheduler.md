@@ -2,6 +2,17 @@
 
 The A2A scheduler extension requires Spanner for schedule state storage and a Cloud Tasks queue for delivery. These resources must be provisioned before the scheduler can start.
 
+## Proto imports (define)
+
+Before infra apply, add both imports below to **any one** proto in the define package (typically `tools.proto`), even if unused — define provisions the Spanner tables from these imports:
+
+```protobuf
+import "alis/a2a/extension/scheduler/v1/scheduler.proto";
+import "alis/agui/history/v1/history.proto";
+```
+
+Ask the user to run define on the package or neuron after editing the proto. See **Proto imports for Spanner tables** in `SKILL.md`.
+
 ## Prerequisites
 
 - A GCP project with Cloud Tasks and Spanner APIs enabled.

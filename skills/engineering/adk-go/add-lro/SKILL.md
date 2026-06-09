@@ -9,14 +9,13 @@ description: >
   immediate-return sync tools (add-tool), AG-UI (add-agui), or embedded SKILL.md skills
   (add-agent-skills). Code generation (define) is a user-side operation; user runs define then
   installs dependencies.
-disable-model-invocation: true
 ---
 
 # Add long-running (LRO) ADK tools
 
 LRO tools return a `google.longrunning.Operation` handle immediately; work continues via Cloud Tasks and Spanner (`alis.lro.v2`). When started from the ADK web UI, completed operations can resume the chat session via `POST /api/run`.
 
-**Start with `references/workspace.md`**, **`references/alis-workspace.md`**, and **`references/define-stubs.md`**. Discover this agent’s code generation and build paths from open folders — never from another product or chat.
+**Start with `references/workspace-lro.md`**, **`references/alis-workspace.md`**, and **`references/define-stubs.md`**. Discover this agent’s code generation and build paths from open folders — never from another product or chat.
 
 ## When to use
 
@@ -26,7 +25,7 @@ See the skill **description** (primary trigger). LRO proto + infra + InitLRO + o
 
 | Need | Use instead |
 |------|-------------|
-| Synchronous / immediate-return tools | `../add-tool/SKILL.md` |
+| Synchronous / immediate-return tools | **add-tool** |
 | A2A Cloud Tasks resume service (separate HTTP handler) | Out of scope for this skill |
 | Running define or terraform apply yourself | Ask the user |
 
@@ -119,7 +118,7 @@ Add other sublaunchers (`webui`, `agui`, `scheduler`, etc.) only if the agent us
 
 ## Pitfalls
 
-- Editing protos or code outside the user’s current workspace — **`references/workspace.md`**.
+- Editing protos or code outside the user’s current workspace — **`references/workspace-lro.md`**.
 - Running define or `go mod edit` before define + install finish.
 - `LRO == nil` at runtime — `MustInitLRO` not called or wrong `serviceID`.
 - Mismatched neuron id between infra, `InitLRO`, and `weblro.WithServiceID`.
@@ -134,7 +133,7 @@ Add other sublaunchers (`webui`, `agui`, `scheduler`, etc.) only if the agent us
 
 | File | Purpose |
 |------|---------|
-| `references/workspace.md` | Path discovery + LRO id alignment |
+| `references/workspace-lro.md` | Path discovery + LRO id alignment |
 | `references/bootstrap-lro.md` | One-time LRO bootstrap |
 | `references/lro-tool-checklist.md` | Per-tool steps |
 | `references/infra-lro.md` | alis.lro.v2 Terraform module |

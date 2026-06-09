@@ -1,8 +1,8 @@
 # Add a synchronous tool
 
-Use this checklist for each new **immediate-return** RPC on `ToolsService`. For long-running operations, stop here and open `../add-lro/SKILL.md`.
+Use this checklist for each new **immediate-return** RPC on `ToolsService`. For long-running operations, stop here and use the **add-lro** skill instead.
 
-Confirm paths with **`workspace.md`** / **`alis-workspace.md`** (same directory) before editing.
+Confirm paths with **`workspace-tools.md`** / **`alis-workspace.md`** (same directory) before editing.
 
 ## Checklist
 

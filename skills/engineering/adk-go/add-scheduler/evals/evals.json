@@ -14,7 +14,8 @@
         "mux.HandleGRPC called with the gRPC server",
         "webscheduler.NewLauncher inside web.NewLauncher with WithGRPCRegistrar",
         "scheduler.MustInitScheduler called before launcher execution",
-        "No proto or define step"
+        "Both scheduler.proto and history.proto imports on a define proto",
+        "User asked to run define after proto edits"
       ]
     },
     {

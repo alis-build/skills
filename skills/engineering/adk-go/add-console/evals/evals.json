@@ -1,0 +1,42 @@
+{
+  "skill_name": "add-console",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Expose our agent with a web UI — add the frontend so users can interact with it in the browser.",
+      "expected_output": "console import, console.NewLauncher last in launchersweb.NewLauncher; deployment args include agui, scheduler, -app_name, and console",
+      "files": [],
+      "assertions": [
+        "Imports go.alis.build/adk/launchers/console not google.golang.org/adk/cmd/launcher/console",
+        "console.NewLauncher is the last argument inside launchersweb.NewLauncher",
+        "Dockerfile CMD or Cloud Run args include agui scheduler -app_name and console",
+        "Mentions add-agui and add-scheduler as required for bundled console SPA",
+        "No tools.proto or define step"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Wire console branding with logo and favicon — assets are hosted on our CDN.",
+      "expected_output": "WithBranding with Logo and Favicon resolvers using URLAsset, not LogoURL/FaviconURL directly",
+      "files": [],
+      "assertions": [
+        "Uses console.WithBranding and console.Branding",
+        "Sets Logo and Favicon with console.URLAsset not LogoURL or FaviconURL",
+        "Explains URLAsset vs EmbedAsset vs DirAsset when asset location differs",
+        "No proto or define step"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Brand the console with embedded logo and favicon files in our agent repo.",
+      "expected_output": "go:embed branding FS with EmbedAsset resolvers for Logo and Favicon",
+      "files": [],
+      "assertions": [
+        "Uses go:embed for branding assets",
+        "Uses console.EmbedAsset for Logo and/or Favicon",
+        "Does not set LogoURL or FaviconURL directly in Branding struct",
+        "No proto or define step"
+      ]
+    }
+  ]
+}

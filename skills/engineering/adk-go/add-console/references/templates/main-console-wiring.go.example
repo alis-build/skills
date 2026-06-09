@@ -1,0 +1,66 @@
+// Wire into agent main.go — add console sublauncher to the existing web launcher stack.
+//
+// Only the import and sublauncher marked REQUIRED are needed for console.
+// Register console LAST so its GET / catch-all does not shadow agui, scheduler, or other routes.
+// Other sublaunchers (webui, api, lro, agui, scheduler, agentengine) are independent —
+// include them only if the agent uses them.
+
+import (
+	// "embed" // only if using EmbedAsset for branding
+
+	console "go.alis.build/adk/launchers/console" // REQUIRED for console
+	launchersweb "go.alis.build/adk/launchers/web"
+	// webagui "go.alis.build/adk/launchers/agui"           // REQUIRED for console SPA (threads/chat)
+	// weblro "go.alis.build/adk/launchers/lro"             // only if LRO is used
+	// webscheduler "go.alis.build/adk/launchers/scheduler" // REQUIRED for console SPA (automation)
+	"google.golang.org/adk/cmd/launcher/universal"
+	// ... other launcher imports ...
+)
+
+// Optional: go:embed branding assets when using EmbedAsset
+// //go:embed branding/*
+// var brandingFS embed.FS
+
+func main() {
+	ctx := context.Background()
+	// ... agent config ...
+
+	// Only include sublaunchers the agent actually uses.
+	// Console requires: launchersweb + agui + scheduler + console (last).
+	l := universal.NewLauncher(launchersweb.NewLauncher(
+		// webagentengine.NewLauncher(agentEngineID),  // only if using Agent Engine
+		// webui.NewLauncher(),                         // only if serving the ADK web UI
+		// webapi.NewLauncher(),                        // only if using /api endpoints
+		// weba2a.NewLauncher(),                        // only if using A2A protocol
+		// weblro.NewLauncher(weblro.WithServiceID("REPLACE_WITH_SERVICE_ID"), weblro.WithLROClient(tools.LRO)),
+		// webagui.NewLauncher("REPLACE_WITH_SERVICE_ID", webagui.WithCORS(webagui.CORSConfig{})),
+		// webscheduler.NewLauncher("REPLACE_WITH_ADK_APP_NAME", scheduler.Service, webscheduler.WithGRPCRegistrar(grpcServer)),
+		console.NewLauncher(console.WithBranding(console.Branding{ // REQUIRED — register LAST
+			Title:       "REPLACE_WITH_CONSOLE_TITLE",
+			DisplayName: "REPLACE_WITH_CONSOLE_DISPLAY_NAME",
+
+			// Option A: external URL or path already served by another route
+			Favicon: console.URLAsset("https://placehold.co/400x400"),
+			Logo:    console.URLAsset("https://placehold.co/400x400"),
+
+			// Option B: agent-served paths (register agent branding routes before console)
+			// Favicon: console.URLAsset("/my-agent/branding/favicon.ico"),
+			// Logo:    console.URLAsset("/my-agent/branding/logo.svg"),
+
+			// Option C: go:embed files served at /console/branding/...
+			// Logo:    console.EmbedAsset(brandingFS, "branding", "logo.svg"),
+			// Favicon: console.EmbedAsset(brandingFS, "branding", "favicon.ico"),
+
+			// Option D: host filesystem at deploy time
+			// Logo:    console.DirAsset("./assets/branding", "logo.svg"),
+			// Favicon: console.DirAsset("./assets/branding", "favicon.ico"),
+		})),
+	))
+	// l.Execute(ctx, launcherConfig, os.Args[1:])
+}
+
+// Deployment CLI args: console SPA requires agui + scheduler at runtime.
+// Dockerfile: CMD ["/app/main", "web", "-port", "8080", "scheduler", "-app_name=REPLACE_WITH_ADK_APP_NAME", "agui", "console"]
+// Cloud Run:  args = ["web", "-port", "8080", "scheduler", "-app_name=REPLACE_WITH_ADK_APP_NAME", "agui", "console"]
+// Uncomment webagui and webscheduler in Go wiring above. Add webui, api, lro only if used.
+// Place "console" last in the args list.

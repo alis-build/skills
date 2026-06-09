@@ -8,28 +8,27 @@ description: >
   Cloud Tasks queue for scheduling, scheduler extension, webscheduler, or recurring agent
   invocations—even if they do not say a2a or scheduler extension. Do not use for sync tools
   (add-tool), long-running operations (add-lro), AG-UI (add-agui), or embedded runtime skills
-  (add-agent-skills). No proto or define step; service id must match infra config.
-disable-model-invocation: true
+  (add-agent-skills). Requires proto imports for Spanner table provisioning
+  (see Proto imports for Spanner tables); service id must match infra config.
 ---
 
 # Add A2A scheduler launcher
 
 Registers the **A2A scheduler extension** on the existing ADK `web.NewLauncher` stack. The scheduler uses Spanner for state and Cloud Tasks for delivery. Wiring requires an `internal/scheduler` package, a gRPC server with the scheduler interceptor, and the `webscheduler` sublauncher.
 
-Read **`references/workspace.md`** for path discovery before making changes.
+Read **`references/workspace-scheduler.md`** for path discovery before making changes.
 
 ## When to use
 
-See the skill **description** (primary trigger). Internal scheduler package + gRPC interceptor + sublauncher inside `web.NewLauncher`; no define.
+See the skill **description** (primary trigger). Internal scheduler package + gRPC interceptor + sublauncher inside `web.NewLauncher`; proto imports + define for Spanner tables.
 
 ## When not to use
 
 | Need | Use instead |
 |------|-------------|
-| Sync / LRO tools, protos | `../add-tool/SKILL.md`, `../add-lro/SKILL.md` |
-| AG-UI SSE endpoint | `../add-agui/SKILL.md` |
-| Embedded runtime skills | `../add-agent-skills/SKILL.md` |
-| **define** / `tools.proto` | Not required for scheduler |
+| Sync / LRO tools, protos | **add-tool**, **add-lro** |
+| AG-UI SSE endpoint | **add-agui** |
+| Embedded runtime skills | **add-agent-skills** |
 
 ## Prerequisites
 
@@ -62,17 +61,18 @@ The `serviceID` in `internal/scheduler/scheduler.go` must match the infra servic
 
 ## Phase A — Bootstrap scheduler (one-time)
 
-Read and follow **`references/workspace.md`** for path discovery.
+Read and follow **`references/workspace-scheduler.md`** for path discovery.
 
 | # | Action | Template |
 |---|--------|----------|
 | 1 | Create `internal/scheduler/scheduler.go` with `InitScheduler`, `MustInitScheduler`, and package-level `Service` | `references/templates/scheduler.go.example` |
-| 2 | Set `serviceID` const to match infra service identifier | `references/workspace.md` |
+| 2 | Set `serviceID` const to match infra service identifier | `references/workspace-scheduler.md` |
 | 3 | Wire entrypoint: import scheduler package, call `MustInitScheduler`, create gRPC server with interceptor, register with mux, add `webscheduler` sublauncher | `references/templates/main-scheduler-wiring.go.example` |
-| 4 | Ensure infra has Spanner table + Cloud Tasks queue + env vars on deployment | `references/infra-scheduler.md` |
-| 5 | Add `scheduler` and `-app_name=<adkAppName>` to the launcher CLI args in Dockerfile and Cloud Run / deployment config | See **Deployment: launcher CLI args** below |
-| 6 | Ask user to install/upgrade dependencies if needed (`go.alis.build/a2a/extension/scheduler`, `go.alis.build/adk/launchers`, `go.alis.build/mux`, `go.alis.build/utils`, `go.alis.build/alog`) |
-| 7 | `go build ./...` and run the agent locally to verify scheduler routes are served |
+| 4 | Add proto imports for Spanner tables if not already present (see **Proto imports for Spanner tables** below); ask user to run define |
+| 5 | Ensure infra has Spanner table + Cloud Tasks queue + env vars on deployment | `references/infra-scheduler.md` |
+| 6 | Add `scheduler` and `-app_name=<adkAppName>` to the launcher CLI args in Dockerfile and Cloud Run / deployment config | See **Deployment: launcher CLI args** below |
+| 7 | Ask user to install/upgrade dependencies if needed (`go.alis.build/a2a/extension/scheduler`, `go.alis.build/adk/launchers`, `go.alis.build/mux`, `go.alis.build/utils`, `go.alis.build/alog`) |
+| 8 | `go build ./...` and run the agent locally to verify scheduler routes are served |
 
 Replace all `REPLACE_WITH_*` placeholders with your module and project values.
 
@@ -92,6 +92,19 @@ The `serviceID` const in `internal/scheduler/scheduler.go` is the core identifie
 ### Alis Build projects
 
 In Alis Build neuron layout, the service id is `local.neuron` (or `variables.neuron`) in `infra/`. Read **`.alis/agents/AGENTS.md`** if it exists for product repo roots.
+
+## Proto imports for Spanner tables
+
+The scheduler stores cron state in Spanner tables provisioned through define. Add the following imports to **any one** proto in the agent's define package (typically `tools.proto`), even if nothing in the file references them:
+
+```protobuf
+import "alis/a2a/extension/scheduler/v1/scheduler.proto";
+import "alis/agui/history/v1/history.proto";
+```
+
+Add **both** imports whenever scheduler Spanner tables are required — even if the agent does not use AG-UI threads/history yet. The imports are for table provisioning, not for RPC definitions in your service.
+
+Ask the user to **run define** on the package (or neuron) after editing the proto. Add **both** imports whenever either scheduler or thread/history Spanner tables are needed — the same rule applies for **add-agui**.
 
 ## Environment variables
 
@@ -158,6 +171,7 @@ go run . web -port 8080 scheduler -app_name=REPLACE_WITH_ADK_APP_NAME
 - [ ] gRPC server registered with `mux.HandleGRPC(grpcServer)`
 - [ ] `webscheduler.NewLauncher` inside `web.NewLauncher(...)` with `WithGRPCRegistrar(grpcServer)`
 - [ ] Cloud Tasks queue `{serviceID}-a2a-scheduler` exists in the agent's region
+- [ ] Proto imports for scheduler (and history) Spanner tables present; user ran define
 - [ ] Scheduler env vars set on deployment target
 - [ ] Dockerfile CMD includes `scheduler` and `-app_name=<adkAppName>`
 - [ ] Cloud Run / deployment args include `scheduler` and `-app_name=<adkAppName>`
@@ -177,12 +191,13 @@ go run . web -port 8080 scheduler -app_name=REPLACE_WITH_ADK_APP_NAME
 - Forgetting to pass `webscheduler.WithGRPCRegistrar(grpcServer)` — scheduler gRPC service won't be registered.
 - Missing `scheduler` in Dockerfile CMD or Cloud Run args — the sublauncher is registered in Go but won't activate without the CLI arg.
 - Missing `-app_name` flag in deployment args — the scheduler needs the ADK app name to function.
+- Skipping proto imports for Spanner tables — scheduler storage will not be provisioned; add both `scheduler.proto` and `history.proto` imports and run define.
 
 ## Templates index
 
 | File | Purpose |
 |------|---------|
-| `references/workspace.md` | Path discovery + service id alignment |
+| `references/workspace-scheduler.md` | Path discovery + service id alignment |
 | `references/infra-scheduler.md` | Spanner + Cloud Tasks + deployment infra |
 | `references/templates/scheduler.go.example` | `internal/scheduler/scheduler.go` |
 | `references/templates/main-scheduler-wiring.go.example` | Entrypoint scheduler + webscheduler wiring |

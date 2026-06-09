@@ -2,7 +2,7 @@
 
 One-time setup before adding individual tools. Complete every step unless your project already has an equivalent.
 
-Read **`workspace.md`**, **`alis-workspace.md`**, and **`define-stubs.md`** (same directory) first.
+Read **`workspace-tools.md`**, **`alis-workspace.md`**, and **`define-stubs.md`** (same directory) first.
 
 ## Prerequisites
 

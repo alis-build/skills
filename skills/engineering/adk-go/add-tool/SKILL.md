@@ -15,7 +15,7 @@ description: >
 
 Proto comments become the model-facing tool description and JSON Schema. Handlers run in-process via ADK `functiontool`; the same service methods can later back gRPC if you register them.
 
-**Start with `references/workspace.md`**, **`references/alis-workspace.md`**, and **`references/define-stubs.md`**. Discover this agent’s code generation and build paths from open folders — never from another product or chat.
+**Start with `references/workspace-tools.md`**, **`references/alis-workspace.md`**, and **`references/define-stubs.md`**. Discover this agent’s code generation and build paths from open folders — never from another product or chat.
 
 ## When to use
 
@@ -25,7 +25,7 @@ See the skill **description** (primary trigger). Sync proto-backed tools only; u
 
 | Need | Use instead |
 |------|-------------|
-| Long-running / `google.longrunning.Operation` RPCs | `../add-lro/SKILL.md` |
+| Long-running / `google.longrunning.Operation` RPCs | **add-lro** |
 | Quick local spike with a one-off inline `functiontool` | OK for experiments only; production agents use this skill |
 
 ## Architecture
@@ -69,7 +69,7 @@ Read and follow **`references/sync-tool-checklist.md`**.
 
 For each tool:
 
-1. Add RPC + messages + comments to **this agent’s** `tools.proto` (`references/workspace.md`).
+1. Add RPC + messages + comments to **this agent’s** `tools.proto` (`references/workspace-tools.md`).
 2. Ask the user to **run a define on the package** `<proto package>`; **stop** — no `go.mod` or Go yet.
 3. Ask the user to **install required dependencies**; wait.
 4. Implement handler on `myToolsService`.
@@ -96,7 +96,7 @@ Group tools with `NewToolSet` and set `llmagent.Config.Toolsets` instead of (or 
 
 ## Pitfalls
 
-- Editing a `tools.proto` or agent module that is not in the user’s current workspace — read **`references/workspace.md`**.
+- Editing a `tools.proto` or agent module that is not in the user’s current workspace — read **`references/workspace-tools.md`**.
 - Running define yourself — the agent does not have access to the build pipeline; ask the user.
 - `go mod edit` / `go get` protobuf **before** define and install — stubs are not published yet.
 - Continuing Go work before define **and** dependency install finish.
@@ -107,7 +107,7 @@ Group tools with `NewToolSet` and set `llmagent.Config.Toolsets` instead of (or 
 
 | File | Purpose |
 |------|---------|
-| `references/workspace.md` | Quick path discovery checklist |
+| `references/workspace-tools.md` | Quick path discovery checklist |
 | `references/alis-workspace.md` | Alis build vs define repos, neuron layout (shared) |
 | `references/define-stubs.md` | define → install deps → then Go (strict order, shared) |
 | `references/json-schema.md` | JSON Schema proto options (applied when define runs) |
