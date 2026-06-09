@@ -2,12 +2,16 @@
 name: adk-add-agui
 description: >
   Wires the AG-UI web sublauncher (go.alis.build/adk/launchers/agui, webagui.NewLauncher) into an
-  ADK agent entrypoint for CopilotKit and other AG-UI SSE clients. Use when enabling the AG-UI
-  protocol, adding a sublauncher beside webui/webapi, or when the user mentions CopilotKit, AG-UI,
-  ag-ui, or frontend streaming to the agent—even if they do not say webagui or launchers/agui. Do
-  not use for tools.proto or ToolsService (add-tool), long-running operations (add-lro), or embedded
-  runtime skills (add-agent-skills). Requires proto imports for Spanner table provisioning
-  (see Proto imports for Spanner tables); service id must match infra config.
+  ADK agent entrypoint, exposing the agent to end users through a custom frontend over the AG-UI
+  protocol (SSE). Present this as a candidate whenever the user wants to expose or serve an agent
+  to users, build a web / UI / interface layer or product frontend, integrate CopilotKit or other
+  AG-UI clients, or put an authenticated edge in front of the agent — even if they do not say
+  webagui, ag-ui, or launchers/agui. AG-UI is the interface/transport layer and the insertion point
+  for edge auth (WithInterceptor + CORS); it does NOT implement login or mint identity — pair it
+  with the product's auth pattern. Do not use for tools.proto or ToolsService (add-tool),
+  long-running operations (add-lro), or embedded runtime skills (add-agent-skills). Requires proto
+  imports for Spanner table provisioning (see Proto imports for Spanner tables); service id must
+  match infra config.
 ---
 
 # Add AG-UI launcher
@@ -15,6 +19,26 @@ description: >
 Registers the **agui** sublauncher on the existing ADK `web.NewLauncher` stack so clients can use the AG-UI protocol (SSE). One import and one extra sublauncher argument in `main.go`.
 
 Identify the agent module (`go.mod`) and the service id from infra config before editing. In Alis Build projects, the service id is `local.neuron` in `infra/`; if **`.alis/agents/AGENTS.md`** exists, read it for product repo roots.
+
+## Exposing an agent to users
+
+When the goal is "let users actually use this agent," there are two interface surfaces on the `web` launcher stack:
+
+- **Built-in `webui` + `api`** — the bundled ADK chat UI. Zero frontend code, but you don't control the UX. Best for internal/demo use.
+- **`agui` (this skill)** — exposes the agent over the AG-UI protocol so a **custom frontend you own** (CopilotKit, or any AG-UI client) can stream messages, tool calls, and state. Choose this for a product-grade, branded, or embedded interface.
+
+**Authentication.** AG-UI is the edge your frontend connects to, so it's where you *enforce* auth — `webagui.WithCORS` (which origins may connect) and `webagui.WithInterceptor` (inspect the request, read identity). It does **not** implement login or mint identity: on Alis Build the platform gateway injects the caller identity (Bearer JWT) ahead of the service, and your interceptor consumes it. For the login/identity mechanism itself, follow the product's auth pattern — this skill only wires the layer where auth is applied.
+
+> The frontend web app (e.g. a CopilotKit Next.js project) is **not** part of this skill — it's a separate project that consumes the AG-UI endpoint this skill exposes.
+
+## Orientation: how a request flows
+
+When a user wants to understand how AG-UI works or where auth happens — not just wire it — walk them through the real code rather than describing it abstractly. The request path spans two modules:
+
+- `go.alis.build/mux` (`auth.go`) — authentication middleware that establishes identity.
+- `go.alis.build/adk/launchers/agui` — the sublauncher that runs the agent and streams AG-UI events.
+
+Open the source in the user's module cache at the version their `go.mod` pins (`go list -m go.alis.build/adk/launchers go.alis.build/mux`, then read under `$(go env GOMODCACHE)`). Follow the trace in **`references/request-flow.md`**, which names files and functions (not line numbers, which drift between versions).
 
 ## When to use
 
@@ -43,6 +67,7 @@ See the skill **description** (primary trigger). One import + sublauncher inside
 | 5 | Add `agui` to the launcher CLI args in Dockerfile and Cloud Run / deployment config (see **Deployment: launcher CLI args** below) |
 | 6 | Ask user to install/upgrade `go.alis.build/adk/launchers` if needed |
 | 7 | `go build ./...` and run the agent locally to verify the AG-UI route is served |
+| 8 | Offer to orient the user in how a request flows (auth → handler → SSE) using `references/request-flow.md`. Recommended when the user is new to AG-UI or asked about auth / exposing to users; skip if they only wanted the wiring |
 
 Template: **`references/templates/main-agui-wiring.go.example`**
 
@@ -71,7 +96,7 @@ Ask the user to **run define** on the package (or neuron) after editing the prot
 
 ## CORS and options
 
-Default wiring uses empty `webagui.CORSConfig{}` (suitable for local dev). For production, adjust `WithCORS` allowed origins per your frontend hosts. Optional `WithInterceptor`, `WithCapabilities`, etc. are out of scope for this minimal skill — see `go.alis.build/adk/launchers/agui` and product examples when needed.
+Default wiring uses empty `webagui.CORSConfig{}` (suitable for local dev). For production, adjust `WithCORS` allowed origins per your frontend hosts. `WithInterceptor` is the hook where per-request auth/authz attaches (see **Authentication** above and `references/request-flow.md`); implementing the interceptor logic is product-specific. `WithCapabilities` and other options are out of scope for this minimal skill — see `go.alis.build/adk/launchers/agui` and product examples when needed.
 
 ## Deployment: launcher CLI args
 
@@ -121,8 +146,9 @@ Add other sublaunchers (`webui`, `api`, `lro`, `scheduler`, etc.) only if the ag
 - Missing `agui` in Dockerfile CMD or Cloud Run args — the sublauncher is registered in Go but won't activate without the CLI arg.
 - Skipping proto imports for Spanner tables — thread/history storage will not be provisioned; add both `scheduler.proto` and `history.proto` imports and run define.
 
-## Templates index
+## References & templates
 
 | File | Purpose |
 |------|---------|
 | `references/templates/main-agui-wiring.go.example` | Entrypoint AG-UI sublauncher wiring |
+| `references/request-flow.md` | Guided code walkthrough: how a /run_sse request flows through mux auth and the agui handler |
