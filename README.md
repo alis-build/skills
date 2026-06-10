@@ -48,6 +48,7 @@ Install a specific skill:
 npx skills add alis-build/skills --skill add-agent-skills
 npx skills add alis-build/skills --skill add-agui
 npx skills add alis-build/skills --skill add-lro
+npx skills add alis-build/skills --skill new-agent
 npx skills add alis-build/skills --skill add-scheduler
 npx skills add alis-build/skills --skill add-tool
 ```
@@ -67,6 +68,8 @@ After installing, mention the skill in your prompt:
 
 > Use the add-tool skill to add a synchronous ToolsService RPC for listing widgets.
 
+> Use the new-agent skill to create a base ADK-Go agent service on Alis Build.
+
 > Wire AG-UI for CopilotKit using the add-agui skill.
 
 ## Available skills
@@ -75,6 +78,7 @@ Current ADK Go skills for building [go.alis.build/adk](https://go.alis.build/adk
 
 | Skill                | Directory                                     | Description                                                                                                              |
 | -------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| **new-agent**        | `skills/engineering/adk-go/new-agent/`        | Guide creation of a base ADK-Go agent service with `blocks/agent`, define, build, deploy, and extension handoff          |
 | **add-tool**         | `skills/engineering/adk-go/add-tool/`         | Add synchronous ADK tools from `tools.proto`, define-generated stubs, and `functiontool` wrappers                        |
 | **add-lro**          | `skills/engineering/adk-go/add-lro/`          | Add long-running tools backed by `google.longrunning.Operation`, `alis.lro.v2` infra, and resumable chat sessions        |
 | **add-agui**         | `skills/engineering/adk-go/add-agui/`         | Wire the AG-UI web sublauncher for CopilotKit and other AG-UI SSE clients alongside the existing web launcher            |
@@ -85,6 +89,7 @@ Current ADK Go skills for building [go.alis.build/adk](https://go.alis.build/adk
 
 | Need                                               | Skill                |
 | -------------------------------------------------- | -------------------- |
+| Create and understand a base ADK-Go agent service  | **new-agent**        |
 | Immediate-return proto-backed RPC tool             | **add-tool**         |
 | Async work that returns an Operation handle        | **add-lro**          |
 | CopilotKit / AG-UI SSE frontend streaming          | **add-agui**         |

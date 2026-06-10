@@ -1,0 +1,4 @@
+interface:
+  display_name: "ADK New Agent"
+  short_description: "Guide a new Alis Build ADK-Go agent"
+  default_prompt: "Use $adk-new-agent to guide me through creating a new base ADK-Go agent on Alis Build."
