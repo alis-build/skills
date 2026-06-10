@@ -22,14 +22,15 @@ Identify the agent module (`go.mod`) and the service id from infra config before
 
 ## Exposing an agent to users
 
-When the goal is "let users actually use this agent," there are two interface surfaces on the `web` launcher stack:
+When the goal is "let users actually use this agent," there are three interface surfaces on the `web` launcher stack:
 
 - **Built-in `webui` + `api`** — the bundled ADK chat UI. Zero frontend code, but you don't control the UX. Best for internal/demo use.
-- **`agui` (this skill)** — exposes the agent over the AG-UI protocol so a **custom frontend you own** (CopilotKit, or any AG-UI client) can stream messages, tool calls, and state. Choose this for a product-grade, branded, or embedded interface.
+- **`agui` (this skill)** — exposes the agent over the AG-UI protocol so a **custom frontend you own** (CopilotKit, or any AG-UI client) can stream messages, tool calls, and state. Choose this for a product-grade, branded, or embedded interface you build separately.
+- **add-console** (`console` sublauncher) — bundled Vue web UI served from the agent (chat shell, branding, `/auth/me`). Uses AG-UI under the hood; choose when the user wants a browser UI without building a separate frontend project.
 
 **Authentication.** AG-UI is the edge your frontend connects to, so it's where you *enforce* auth — `webagui.WithCORS` (which origins may connect) and `webagui.WithInterceptor` (inspect the request, read identity). It does **not** implement login or mint identity: on Alis Build the platform gateway injects the caller identity (Bearer JWT) ahead of the service, and your interceptor consumes it. For the login/identity mechanism itself, follow the product's auth pattern — this skill only wires the layer where auth is applied.
 
-> The frontend web app (e.g. a CopilotKit Next.js project) is **not** part of this skill — it's a separate project that consumes the AG-UI endpoint this skill exposes.
+> A separate frontend (e.g. CopilotKit) or the bundled SPA (**add-console**) are **not** part of this skill — this skill only wires the AG-UI endpoint. If the user also needs or wants a UI, frontend, console, or chat UI in the browser, **ask** whether they want to use **add-console** after AG-UI wiring is in place; wait for confirmation before applying that skill.
 
 ## Orientation: how a request flows
 
@@ -49,6 +50,7 @@ See the skill **description** (primary trigger). One import + sublauncher inside
 | Need | Use instead |
 |------|-------------|
 | Sync / LRO tools, protos | **add-tool**, **add-lro** |
+| Bundled Vue web UI (console launcher, branding, chat shell) | **add-console** (requires AG-UI; also **add-scheduler**) |
 | Custom auth/history/A2UI interceptors (full stack) | Follow product-specific patterns beyond this minimal wiring |
 
 ## Prerequisites
@@ -67,7 +69,8 @@ See the skill **description** (primary trigger). One import + sublauncher inside
 | 5 | Add `agui` to the launcher CLI args in Dockerfile and Cloud Run / deployment config (see **Deployment: launcher CLI args** below) |
 | 6 | Ask user to install/upgrade `go.alis.build/adk/launchers` if needed |
 | 7 | `go build ./...` and run the agent locally to verify the AG-UI route is served |
-| 8 | Offer to orient the user in how a request flows (auth → handler → SSE) using `references/request-flow.md`. Recommended when the user is new to AG-UI or asked about auth / exposing to users; skip if they only wanted the wiring |
+| 8 | If the user needs or wants a browser UI (frontend, console, chat UI) and does not already have a separate AG-UI client, **ask** whether they want **add-console** for the bundled Vue web UI — do not auto-apply; wait for confirmation |
+| 9 | Offer to orient the user in how a request flows (auth → handler → SSE) using `references/request-flow.md`. Recommended when the user is new to AG-UI or asked about auth / exposing to users; skip if they only wanted the wiring |
 
 Template: **`references/templates/main-agui-wiring.go.example`**
 
