@@ -23,6 +23,7 @@ These skills are available through the Alis Build plugins for supported agent to
 |                                                                               | Tool        | Plugin                                                                                |
 | ----------------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------- |
 | <img src="assets/geminicli.svg" alt="Gemini CLI logo" width="28" height="28"> | Gemini CLI  | [alis-build/gemini-cli-extension](https://github.com/alis-build/gemini-cli-extension) |
+| <img src="assets/cursor.svg" alt="Cursor logo" width="28" height="28">        | Cursor      | [alis-build/cursor-plugin](https://github.com/alis-build/cursor-plugin)               |
 | <img src="assets/claude.svg" alt="Claude Code logo" width="28" height="28">   | Claude Code | [alis-build/claude-plugin](https://github.com/alis-build/claude-plugin)               |
 | <img src="assets/codex.svg" alt="Codex logo" width="28" height="28">          | Codex       | [alis-build/codex-plugin](https://github.com/alis-build/codex-plugin)                 |
 
