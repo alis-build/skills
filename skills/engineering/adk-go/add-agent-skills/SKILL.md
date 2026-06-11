@@ -6,7 +6,7 @@ description: >
   internal/skills, adding one or more embedded skills (e.g. deep-research), wiring SkillToolset in
   main.go, or when the user mentions skill toolset, go:embed skills, load_skill, skill folders, or
   specialized agent instructions—even if they do not say skilltoolset or Toolsets. Do not use for
-  Cursor/build skills under neuron .agents/skills/ (use those separately) or for proto function tools
+  agent-tooling install skills under neuron .agents/skills/ (use those separately) or for proto function tools
   (add-tool / add-lro). No proto or define step.
 ---
 
@@ -14,18 +14,18 @@ description: >
 
 Agent **skills** are markdown instruction packs the model loads on demand (`load_skill`, etc.). They live under `internal/skills/skills/<name>/SKILL.md`, are embedded into the binary, and exposed through ADK **`skilltoolset`** on `llmagent.Config.Toolsets` — separate from proto-backed **Tools** (`add-tool` / `add-lro`).
 
-Identify the agent module (`go.mod`) and entrypoint before editing. In Alis Build projects, read **`.alis/agents/AGENTS.md`** if it exists for product repo roots and neuron paths.
+Read **`references/alis-workspace.md`** before editing when working in an Alis Build product repo. Identify the agent module (`go.mod`) and entrypoint from that discovery flow.
 
 ## When to use
 
-See the skill **description** (primary trigger). In short: runtime `internal/skills/skills/*/SKILL.md` + `Toolsets`, not neuron `.agents/skills/`, not proto tools.
+See the skill **description** (primary trigger). In short: runtime `internal/skills/skills/*/SKILL.md` + `Toolsets`, not agent-tooling `.agents/skills/`, not proto tools.
 
 ## When not to use
 
 | Need | Use instead |
 |------|-------------|
 | Sync / LRO RPC tools | **add-tool**, **add-lro** |
-| Cursor IDE skills under `.agents/skills/` | Different system — this skill is **runtime** skills inside the Go agent |
+| Agent-tooling install skills under `.agents/skills/` | Different system — this skill is **runtime** skills inside the Go agent |
 | **define** / `tools.proto` | Not required |
 
 ## Architecture
@@ -75,7 +75,7 @@ Add as many skills as needed; each is one folder + one `SKILL.md`.
 
 ## Pitfalls
 
-- Putting runtime skills in `.agents/skills/` at the neuron root — that path is for **Cursor/build** skills; runtime skills belong in `agent/internal/skills/skills/`.
+- Putting runtime skills in `.agents/skills/` at the neuron root — that path is for **agent-tooling install** skills (via skills.sh); runtime skills belong in `agent/internal/skills/skills/`.
 - Forgetting `//go:embed skills` path matches the directory name exactly.
 - Only updating `Tools` but not `Toolsets` — skills will not appear.
 - Duplicate `name` in frontmatter across two folders.

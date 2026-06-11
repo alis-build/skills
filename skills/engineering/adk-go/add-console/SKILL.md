@@ -17,7 +17,7 @@ description: >
 
 Registers the **console** sublauncher on the existing ADK `launchersweb.NewLauncher` stack so users get the embedded Vue web UI at `/`, runtime config, and `/auth/me`. The bundled SPA depends on **add-agui** (threads/chat) and **add-scheduler** (automation) — wire those sublaunchers in Go and include `agui`, `scheduler`, and `-app_name=...` in deployment CLI args alongside `console`. One import, one sublauncher argument (registered **last**), and optional branding in `main.go`.
 
-Identify the agent module (`go.mod`) before editing. In Alis Build projects, if **`.alis/agents/AGENTS.md`** exists, read it for product repo roots.
+Read **`references/alis-workspace.md`** before editing when working in an Alis Build product repo. Identify the agent module (`go.mod`) from that discovery flow.
 
 **Do not confuse packages:**
 

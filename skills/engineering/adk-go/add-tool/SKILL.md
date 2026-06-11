@@ -15,7 +15,7 @@ description: >
 
 Proto comments become the model-facing tool description and JSON Schema. Handlers run in-process via ADK `functiontool`; the same service methods can later back gRPC if you register them.
 
-**Start with `references/workspace-tools.md`**, **`references/alis-workspace.md`**, and **`references/define-stubs.md`**. Discover this agent’s code generation and build paths from open folders — never from another product or chat.
+**Start with `references/workspace-tools.md`**, **`references/alis-workspace.md`**, and **`references/define-stubs.md`**. Follow **`references/alis-workspace.md`** tier order (MCP → `~/alis.build` path parse → neuron anchors) — never from another product or chat.
 
 ## When to use
 
@@ -86,8 +86,8 @@ Group tools with `NewToolSet` and set `llmagent.Config.Toolsets` instead of (or 
 
 ## Verification (always)
 
-- [ ] `tools.proto` edited in the define package discovered for this workspace
-- [ ] User ran define on the package or neuron (values from workspace, not from this skill)
+- [ ] `tools.proto` edited in the define package from **`alis-workspace.md`** discovery
+- [ ] User ran define on the package or neuron (values from **`alis-workspace.md`** discovery via MCP or path parse, not from this skill)
 - [ ] User installed required dependencies after define
 - [ ] `go build ./...` passes
 - [ ] Tool registered in `MyTools()` with correct snake_case name
@@ -108,7 +108,7 @@ Group tools with `NewToolSet` and set `llmagent.Config.Toolsets` instead of (or 
 | File | Purpose |
 |------|---------|
 | `references/workspace-tools.md` | Quick path discovery checklist |
-| `references/alis-workspace.md` | Alis build vs define repos, neuron layout (shared) |
+| `references/alis-workspace.md` | Alis Build repo layout and path discovery |
 | `references/define-stubs.md` | define → install deps → then Go (strict order, shared) |
 | `references/json-schema.md` | JSON Schema proto options (applied when define runs) |
 | `references/templates/tools.proto.example` | Starter ToolsService + messages |

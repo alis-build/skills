@@ -9,7 +9,7 @@
       "assertions": [
         "internal/skills/skills.go uses skilltoolset and embed.FS",
         "main.go sets llmagent.Config.Toolsets with SkillToolset",
-        "Does not confuse with .agents/skills Cursor skills path",
+        "Does not confuse with .agents/skills agent-tooling install path",
         "No tools.proto or define step"
       ]
     },

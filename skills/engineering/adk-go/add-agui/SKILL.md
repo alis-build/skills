@@ -18,7 +18,7 @@ description: >
 
 Registers the **agui** sublauncher on the existing ADK `web.NewLauncher` stack so clients can use the AG-UI protocol (SSE). One import and one extra sublauncher argument in `main.go`.
 
-Identify the agent module (`go.mod`) and the service id from infra config before editing. In Alis Build projects, the service id is `local.neuron` in `infra/`; if **`.alis/agents/AGENTS.md`** exists, read it for product repo roots.
+Read **`references/alis-workspace.md`** before editing when working in an Alis Build product repo. Identify the agent module (`go.mod`) and the service id (`local.neuron` in `infra/`) from that discovery flow.
 
 ## Exposing an agent to users
 

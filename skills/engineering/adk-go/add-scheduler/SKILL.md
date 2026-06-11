@@ -91,7 +91,7 @@ The `serviceID` const in `internal/scheduler/scheduler.go` is the core identifie
 
 ### Alis Build projects
 
-In Alis Build neuron layout, the service id is `local.neuron` (or `variables.neuron`) in `infra/`. Read **`.alis/agents/AGENTS.md`** if it exists for product repo roots.
+In Alis Build neuron layout, the service id is `local.neuron` (or `variables.neuron`) in `infra/`. Read **`references/workspace-scheduler.md`** for Alis Build repo and neuron path discovery.
 
 ## Proto imports for Spanner tables
 

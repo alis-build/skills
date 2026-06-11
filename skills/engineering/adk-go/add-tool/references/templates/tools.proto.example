@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-// Set package to match this agent's tools.proto (read from workspace — do not copy from another agent).
+// Set package to match this neuron's tools.proto (read package line at define path from alis-workspace.md — do not copy from another agent).
 package REPLACE_WITH_YOUR_PROTO_PACKAGE;
 
 import "alis/open/options/v1/options.proto";

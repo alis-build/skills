@@ -15,7 +15,7 @@ description: >
 
 LRO tools return a `google.longrunning.Operation` handle immediately; work continues via Cloud Tasks and Spanner (`alis.lro.v2`). When started from the ADK web UI, completed operations can resume the chat session via `POST /api/run`.
 
-**Start with `references/workspace-lro.md`**, **`references/alis-workspace.md`**, and **`references/define-stubs.md`**. Discover this agent’s code generation and build paths from open folders — never from another product or chat.
+**Start with `references/workspace-lro.md`**, **`references/alis-workspace.md`**, and **`references/define-stubs.md`**. Follow **`references/alis-workspace.md`** tier order (MCP → `~/alis.build` path parse → neuron anchors) — never from another product or chat.
 
 ## When to use
 
