@@ -8,15 +8,15 @@ Primary work is Go wiring in the build repo (`webagui.NewLauncher`). Optional pr
 
 Landing zone (organisation) → product → neuron (deployable service). Build and define live in separate repos under `~/alis.build/`.
 
-## Neuron folder shape
+## Neuron id vs repo path
 
-Version is in the neuron id (e.g. `agent-v1`), not a nested `v1/` folder:
+**Neuron id** — platform identifier from `ViewProduct` or `local.neuron` / `var.neuron` in `infra/`. Hyphen-separated; may encode several segments and a version (`…-v1`, `…-v2`, etc.). A product can host many neuron ids — pick the target explicitly.
 
-```text
-<neuron-id>/
-  agent/          # go.mod, main.go, Dockerfile
-  infra/          # Terraform; local.neuron = "<neuron-id>"
-```
+**Neuron repo path** — multi-segment directory under the product (often ending in `v1/`, `v2/`, …), usually **not** a single folder named like the neuron id. The same `<neuron-path>/` appears under build and define.
+
+## Build repo layout (under `<neuron-path>/`)
+
+**Only `infra/` is guaranteed.** The parent of `infra/` is the neuron root. Go services may live in subfolders or at the neuron root — follow the neuron you are editing. `blocks/agent` often uses `agent/`; that is a convention, not a requirement. If multiple `go.mod` files exist, ask which service receives the AG-UI launcher.
 
 ## Canonical paths
 
@@ -24,42 +24,43 @@ Version is in the neuron id (e.g. `agent-v1`), not a nested `v1/` folder:
 | -------- | ---- |
 | Build repo root | `~/alis.build/<landing-zone>/build/<product>/` |
 | Define repo root | `~/alis.build/<landing-zone>/define/` |
-| Neuron build tree | `~/alis.build/<lz>/build/<product>/<neuron>/` |
-| Neuron protos (optional) | `~/alis.build/<lz>/define/<product>/<neuron>/` (e.g. `tools.proto`) |
+| Neuron build root | `~/alis.build/<lz>/build/<product>/<neuron-path>/` (parent of `infra/`) |
+| Neuron define tree | `~/alis.build/<lz>/define/<define-product-path>/<neuron-path>/` |
 
-Define paths include a `<product>/` segment; build paths do not repeat product inside the neuron folder.
+- `<define-product-path>` may be nested when the product id contains dots — confirm from MCP or the define repo.
 
 ## Discovery tier order
 
 1. **MCP** — `ListLandingZones` → `GetLandingZone` → `ViewProduct(lz, product)` for neuron ids, versions, environments. Use `CloneProduct` / `PullDefine` for canonical clone paths. Never invent environment IDs.
-2. **Parse path** — If cwd or an open file is under `~/alis.build/...`, extract `<lz>`, `<product>`, `<neuron>` from path segments.
-3. **Neuron anchors** — `agent/go.mod`, `infra/` → `local.neuron` / `var.neuron`. For optional Spanner proto work, `tools.proto` at the define path above.
-4. **Ask user** — Smallest missing piece only (landing zone, product, or neuron).
+2. **Parse path** — Locate `infra/` with `local.neuron` (or walk up from open files). Its parent is the neuron root; capture `<neuron-path>` up to the product folder.
+3. **Neuron anchors** — `infra/local.neuron`; nearest `go.mod` under the neuron root for the service you are editing. For optional Spanner proto work, `tools.proto` under the matching define tree.
+4. **Ask user** — Smallest missing piece only (landing zone, product, neuron id, which `go.mod` when several exist).
 
 ## Deriving the paired repo
 
-When only one repo is checked out:
-
-- From build `~/alis.build/<lz>/build/<product>/<neuron>/` → define at `~/alis.build/<lz>/define/<product>/<neuron>/`
-- From define `~/alis.build/<lz>/define/<product>/<neuron>/` → build at `~/alis.build/<lz>/build/<product>/<neuron>/`
-- If not under `~/alis.build` → MCP `CloneProduct` / `PullDefine`, or ask for landing zone + product
+1. Record `<neuron-path>/` to the neuron root (parent of `infra/`).
+2. **Build → define** — `~/alis.build/<lz>/define/<define-product-path>/<neuron-path>/`
+3. **Define → build** — `~/alis.build/<lz>/build/<product>/<neuron-path>/`
 
 ## Quick discovery (before any edit)
 
-1. **Agent module** — `go.mod` under `~/alis.build/<lz>/build/<product>/<neuron>/agent/`. AG-UI wiring is in the entrypoint.
+1. **Neuron root** — parent of `infra/` under the build tree.
 
-2. **Service id** — `local.neuron` (or `var.neuron`) in `infra/`. Passed to `webagui.NewLauncher` — not the proto package name and not necessarily `llmagent.Config.Name`.
+2. **Go module** — nearest `go.mod` under that root. AG-UI wiring is in that module's entrypoint.
 
-3. **Optional proto (Spanner only)** — When threads/history tables are needed, edit `tools.proto` at the define path and follow **`SKILL.md`** → **Proto imports for Spanner tables** (ask user to run define). Skip proto work for launcher-only wiring.
+3. **Service id** — `local.neuron` in `infra/`. Passed to `webagui.NewLauncher` — not the proto package name and not necessarily `llmagent.Config.Name`.
+
+4. **Optional proto (Spanner only)** — When threads/history tables are needed, edit `tools.proto` under the neuron define tree and follow **`SKILL.md`** → **Proto imports for Spanner tables** (ask user to run define). Skip proto work for launcher-only wiring.
 
 ## Hard rules
 
 | Do | Do not |
 | ---- | ------ |
-| Keep Go edits on the **same** neuron you discovered | Edit another neuron's code from memory or templates |
+| Keep Go edits on the **same** neuron id and neuron root | Edit another neuron's code from memory or templates |
+| Anchor on `infra/` + `local.neuron`, then find the correct `go.mod` | Assume every neuron uses an `agent/` subfolder |
 | Read `go.mod` and `infra/local.neuron` from the open project | Invent paths from another product or chat |
 | Follow discovery tier order above | Rely on ad-hoc metadata files instead of MCP or `~/alis.build` path rules |
 | Use **`SKILL.md`** for proto/import/define steps | Follow `define-stubs.md` or add-tool proto workflows from another skill |
-| Ask the user if pairing is unclear | Guess repo layout |
+| Ask the user if pairing is unclear | Guess repo layout or assume neuron id equals one folder name |
 
 User corrections override everything — re-read `go.mod` and infra config at the path they give you.
