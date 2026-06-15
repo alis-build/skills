@@ -113,6 +113,19 @@ in, especially across long-running Define/Build/Deploy waits. Keep them oriented
 - **Never silently jump stages.** Finishing Define and starting Build should read as a deliberate,
   visible handoff, not a continuous stream of steps.
 
+## Waiting on Long-Running Operations
+
+Define, Build, and Deploy each take minutes to complete. Handle those waits deliberately:
+
+- **Use the MCP status/wait tools to poll, not shell timers.** Wait on Define with the MCP
+  `WaitForLastDefine` tool, and poll Build/Deploy via their MCP status calls. Do **not** spin up
+  shell `sleep` / `git ls-remote` loops to pass time — they add no signal and clutter the session.
+- **Keep the status marker visible during the wait** so the user always knows which stage is in
+  flight (`Define ✅ → Build ⏳ → Deploy ⬜`).
+- **Use the wait productively to prepare the next stage** — e.g. while Build runs, review the
+  `infra/` Terraform; while Deploy runs, open the playground test so validation is ready the
+  moment the operation lands.
+
 ## Onboarding Flow
 
 Start by orienting the user:
@@ -215,7 +228,11 @@ Open this phase by announcing **Stage 3 of 3 — Deploy** with the status marker
 
 1. Use `environment` from context. If absent, get the product's known environments from MCP
    `ViewProduct`; do not invent an environment ID.
-2. Ask the user which environment to deploy to, usually DEV for first onboarding.
+2. Ask the user which environment to deploy to, usually DEV for first onboarding. **If the product
+   has no DEV environment** (some have only Production), say so explicitly: deploying the
+   quickstart there puts a learning service into Production. It is isolated from real services,
+   but get deliberate confirmation before proceeding, and flag that you will offer to tear it down
+   afterwards (see Clean Up).
 3. Review the neuron's `infra/` files (under `workstations.build_repos`) with the user before
    applying.
 4. Deploy the successful build version to the selected environment.
@@ -234,6 +251,24 @@ Open this phase by announcing **Stage 3 of 3 — Deploy** with the status marker
 
 Explain while guiding: Deploy applies the runtime infrastructure and proves the built artifact
 works in a real environment.
+
+### 4. Clean Up
+
+The quickstart creates a throwaway *learning* service. Once the user has seen the end-to-end
+result, do not leave it running silently:
+
+1. Once validation has passed and the user has seen the result, offer to tear down the quickstart
+   neuron (and its deployed service) so no learning artifact is left behind.
+2. **Make this offer emphatic when the service was deployed to Production** (e.g. because the
+   product had no DEV environment) — a learning service left running in Production is the case
+   most worth cleaning up.
+3. If the user wants to keep iterating instead (extend the proto, run the cycle again), that is
+   fine — leave it in place and note they can ask for teardown later.
+4. Remind them that local credentials issued via `PrepareLocalEnvironment` are time-limited, so a
+   later session may need to re-issue them.
+
+This is a closing courtesy, not a forced step: never tear anything down without explicit
+confirmation.
 
 ## Define Glass Mode Context
 
@@ -266,5 +301,10 @@ reported where those outputs live and how to use them.
       or are derived from the selected neuron's filesystem when context is absent.
 - [ ] Deploy targets a real environment from the Runtime Context or product context.
 - [ ] The user validates the deployed service through the playground or an equivalent call.
+- [ ] Long-running Define/Build/Deploy waits used MCP status/wait tools, not shell `sleep` loops.
+- [ ] If the product had no DEV environment, deploying the learning service to Production was
+      flagged and explicitly confirmed.
+- [ ] After validation, teardown of the quickstart neuron was offered (emphatically if deployed to
+      Production), and nothing was torn down without explicit confirmation.
 - [ ] If a Runtime Context block was provided, its exact paths/IDs were used and no redundant
       scanning, deriving, or asking occurred.
