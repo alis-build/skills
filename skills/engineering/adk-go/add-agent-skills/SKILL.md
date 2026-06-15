@@ -14,7 +14,17 @@ description: >
 
 Agent **skills** are markdown instruction packs the model loads on demand (`load_skill`, etc.). They live under `internal/skills/skills/<name>/SKILL.md`, are embedded into the binary, and exposed through ADK **`skilltoolset`** on `llmagent.Config.Toolsets` — separate from proto-backed **Tools** (`add-tool` / `add-lro`).
 
-Read **`references/alis-workspace.md`** before editing when working in an Alis Build product repo. Identify the agent module (`go.mod`) and entrypoint from that discovery flow.
+## Available scripts
+
+- **`scripts/resolve-alis-workspace.sh`** — Resolves Alis Build workspace context (organisation, product, neuron, paths) from the current working directory. Run with `--json` for structured output, `--help` for usage.
+
+**Before any edits**, run the workspace resolver to identify the neuron, paths, and service id:
+
+```bash
+bash scripts/resolve-alis-workspace.sh --json
+```
+
+Then read **`references/alis-workspace.md`** for the full discovery tier order. Use `workstations.build_repos` for the agent module and entrypoint.
 
 ## When to use
 

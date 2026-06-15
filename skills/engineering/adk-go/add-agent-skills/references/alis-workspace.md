@@ -10,9 +10,9 @@ Landing zone (organisation) → product → neuron (deployable service). Agent c
 
 ## Neuron id vs repo path
 
-**Neuron id** — platform identifier from `ViewProduct` or `local.neuron` / `var.neuron` in `infra/`. Hyphen-separated; may encode several segments and a version (`…-v1`, `…-v2`, etc.). A product can host many neuron ids — pick the target explicitly.
+**Neuron id** — hyphen-separated platform identifier (e.g. `agents-users-v1`, `ai-v1`). Derived from the on-disk neuron path by replacing `/` with `-`.
 
-**Neuron repo path** — multi-segment directory under the product (often ending in `v1/`, `v2/`, …), usually **not** a single folder named like the neuron id.
+**Neuron repo path** — multi-segment directory under the product (e.g. `agents/users/v1`, `ai/v1`).
 
 ## Build repo layout (under `<neuron-path>/`)
 
@@ -22,21 +22,32 @@ If multiple `go.mod` files exist under one neuron, ask which service is the targ
 
 ## Canonical paths
 
-| Artifact | Path |
-| -------- | ---- |
-| Build repo root | `~/alis.build/<landing-zone>/build/<product>/` |
-| Neuron build root | `~/alis.build/<lz>/build/<product>/<neuron-path>/` (parent of `infra/`) |
+| Artifact | Script key |
+| -------- | ---------- |
+| Alis Build root | `workstations.root_directory` |
+| Neuron build root | `workstations.build_repos[]` |
+| Neuron define tree | `workstations.define_repos[]` |
+| Infra directory | `workstations.infra` |
+| Playground | `workstations.playground` |
 
 ## Discovery tier order
 
-1. **MCP** — `ListLandingZones` → `GetLandingZone` → `ViewProduct(lz, product)` for neuron ids. Use `CloneProduct` for canonical clone paths.
-2. **Parse path** — Locate `infra/` with `local.neuron` (or walk up from open files). Its parent is the neuron root; capture `<neuron-path>` up to the product folder.
-3. **Neuron anchors** — `infra/local.neuron`; nearest `go.mod` under the neuron root for the service you are editing; entrypoint in that module (runtime skills: `internal/skills/skills/` relative to that module).
-4. **Ask user** — Smallest missing piece only (landing zone, product, neuron id, which `go.mod` when several exist).
+1. **Resolve script** — Run the bundled resolver. It derives organisation, product, neuron id, and all workstation paths purely from the `~/alis.build/` directory structure. Pass `--cwd` when the user's working directory differs from the target neuron:
+
+   ```bash
+   bash scripts/resolve-alis-workspace.sh --json
+   bash scripts/resolve-alis-workspace.sh --json --cwd <path>
+   ```
+
+   The JSON output provides `organisation_id`, `product_id`, `focus_neuron_id`, and `workstations` (build_repos, infra, playground). Use these values directly — do not re-derive them.
+
+2. **MCP** — `ListLandingZones` → `GetLandingZone` → `ViewProduct(lz, product)` for neuron lists. Use `CloneProduct` for canonical clone paths.
+3. **Neuron anchors** — nearest `go.mod` under the neuron build root for the service you are editing; entrypoint in that module (runtime skills: `internal/skills/skills/` relative to that module).
+4. **Ask user** — Smallest missing piece only (which `go.mod` when several exist).
 
 ## Quick discovery (before any edit)
 
-1. **Neuron root** — parent of `infra/` under `~/alis.build/<lz>/build/<product>/<neuron-path>/`.
+1. **Neuron root** — `workstations.build_repos` from the resolve script.
 
 2. **Go module** — nearest `go.mod` under that root for the ADK service you are wiring.
 
@@ -46,10 +57,11 @@ If multiple `go.mod` files exist under one neuron, ask which service is the targ
 
 | Do | Do not |
 | ---- | ------ |
+| Run `bash scripts/resolve-alis-workspace.sh --json` first | Manually parse `~/alis.build` paths or read infra terraform files |
 | Keep Go edits on the **same** neuron id and neuron root | Edit another neuron's code from memory or templates |
-| Anchor on `infra/` + `local.neuron`, then find the correct `go.mod` | Assume every neuron uses an `agent/` subfolder |
-| Read `go.mod` and `local.neuron` from the open project | Invent paths from another product or chat |
-| Follow discovery tier order above | Rely on ad-hoc metadata files instead of MCP or `~/alis.build` path rules |
+| Use the resolve script output for build/infra paths | Assume every neuron uses an `agent/` subfolder |
+| Read `go.mod` from the open project | Invent paths from another product or chat |
+| Follow discovery tier order above | Rely on ad-hoc metadata files instead of the script or MCP |
 | Ask the user if pairing is unclear | Guess repo layout or assume neuron id equals one folder name |
 
 User corrections override everything — re-read `go.mod` at the path they give you.

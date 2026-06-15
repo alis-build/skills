@@ -16,7 +16,17 @@ description: >
 
 Registers the **A2A scheduler extension** on the existing ADK `web.NewLauncher` stack. The scheduler uses Spanner for state and Cloud Tasks for delivery. Wiring requires an `internal/scheduler` package, a gRPC server with the scheduler interceptor, and the `webscheduler` sublauncher.
 
-Read **`references/workspace-scheduler.md`** for path discovery before making changes.
+## Available scripts
+
+- **`scripts/resolve-alis-workspace.sh`** — Resolves Alis Build workspace context (organisation, product, neuron, paths) from the current working directory. Run with `--json` for structured output, `--help` for usage.
+
+**Before any edits**, run the workspace resolver to identify the neuron, paths, and service id:
+
+```bash
+bash scripts/resolve-alis-workspace.sh --json
+```
+
+Then read **`references/workspace-scheduler.md`** for the full discovery tier order and scheduler-specific path checks.
 
 ## When to use
 
@@ -91,7 +101,7 @@ The `serviceID` const in `internal/scheduler/scheduler.go` is the core identifie
 
 ### Alis Build projects
 
-In Alis Build neuron layout, the service id is `local.neuron` (or `variables.neuron`) in `infra/`. Read **`references/workspace-scheduler.md`** for Alis Build repo and neuron path discovery.
+In Alis Build neuron layout, the service id is `focus_neuron_id` from the resolve script output. Read **`references/workspace-scheduler.md`** for the full discovery tier order.
 
 ## Proto imports for Spanner tables
 

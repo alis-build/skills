@@ -15,7 +15,17 @@ description: >
 
 LRO tools return a `google.longrunning.Operation` handle immediately; work continues via Cloud Tasks and Spanner (`alis.lro.v2`). When started from the ADK web UI, completed operations can resume the chat session via `POST /api/run`.
 
-**Start with `references/workspace-lro.md`**, **`references/alis-workspace.md`**, and **`references/define-stubs.md`**. Follow **`references/alis-workspace.md`** tier order (MCP → `~/alis.build` path parse → neuron anchors) — never from another product or chat.
+## Available scripts
+
+- **`scripts/resolve-alis-workspace.sh`** — Resolves Alis Build workspace context (organisation, product, neuron, paths) from the current working directory. Run with `--json` for structured output, `--help` for usage.
+
+**Before any edits**, run the workspace resolver to identify the neuron, paths, and service id:
+
+```bash
+bash scripts/resolve-alis-workspace.sh --json
+```
+
+Then read **`references/workspace-lro.md`**, **`references/alis-workspace.md`**, and **`references/define-stubs.md`**. Follow **`references/alis-workspace.md`** tier order (resolve script → MCP → neuron anchors) — never derive paths from another product or chat.
 
 ## When to use
 
@@ -48,7 +58,7 @@ infra alis.lro.v2           Spanner + Cloud Tasks queue
 agent entrypoint            MustInitLRO + weblro sublauncher
 ```
 
-`lroServiceID` in Go must match infra `local.neuron`. `lroresume.DefaultAppName` must match `llmagent.Config.Name`.
+`lroServiceID` in Go must match `focus_neuron_id` from the resolve script. `lroresume.DefaultAppName` must match `llmagent.Config.Name`.
 
 ## Phase A — Bootstrap LRO (one-time)
 

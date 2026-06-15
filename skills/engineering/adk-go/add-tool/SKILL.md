@@ -15,7 +15,17 @@ description: >
 
 Proto comments become the model-facing tool description and JSON Schema. Handlers run in-process via ADK `functiontool`; the same service methods can later back gRPC if you register them.
 
-**Start with `references/workspace-tools.md`**, **`references/alis-workspace.md`**, and **`references/define-stubs.md`**. Follow **`references/alis-workspace.md`** tier order (MCP → `~/alis.build` path parse → neuron anchors) — never from another product or chat.
+## Available scripts
+
+- **`scripts/resolve-alis-workspace.sh`** — Resolves Alis Build workspace context (organisation, product, neuron, paths) from the current working directory. Run with `--json` for structured output, `--help` for usage.
+
+**Before any edits**, run the workspace resolver to identify the neuron, paths, and service id:
+
+```bash
+bash scripts/resolve-alis-workspace.sh --json
+```
+
+Then read **`references/workspace-tools.md`**, **`references/alis-workspace.md`**, and **`references/define-stubs.md`**. Follow **`references/alis-workspace.md`** tier order (resolve script → MCP → neuron anchors) — never derive paths from another product or chat.
 
 ## When to use
 
@@ -87,7 +97,7 @@ Group tools with `NewToolSet` and set `llmagent.Config.Toolsets` instead of (or 
 ## Verification (always)
 
 - [ ] `tools.proto` edited in the define package from **`alis-workspace.md`** discovery
-- [ ] User ran define on the package or neuron (values from **`alis-workspace.md`** discovery via MCP or path parse, not from this skill)
+- [ ] User ran define on the package or neuron (values from **`alis-workspace.md`** discovery via resolve script or MCP, not from this skill)
 - [ ] User installed required dependencies after define
 - [ ] `go build ./...` passes
 - [ ] Tool registered in `MyTools()` with correct snake_case name

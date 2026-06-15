@@ -18,7 +18,17 @@ description: >
 
 Registers the **agui** sublauncher on the existing ADK `web.NewLauncher` stack so clients can use the AG-UI protocol (SSE). One import and one extra sublauncher argument in `main.go`.
 
-Read **`references/alis-workspace.md`** before editing when working in an Alis Build product repo. Identify the agent module (`go.mod`) and the service id (`local.neuron` in `infra/`) from that discovery flow.
+## Available scripts
+
+- **`scripts/resolve-alis-workspace.sh`** — Resolves Alis Build workspace context (organisation, product, neuron, paths) from the current working directory. Run with `--json` for structured output, `--help` for usage.
+
+**Before any edits**, run the workspace resolver to identify the neuron, paths, and service id:
+
+```bash
+bash scripts/resolve-alis-workspace.sh --json
+```
+
+Then read **`references/alis-workspace.md`** for the full discovery tier order. Use `focus_neuron_id` from the script output as the service id and `workstations.build_repos` for the agent module.
 
 ## Exposing an agent to users
 
@@ -82,7 +92,7 @@ If both LRO and AG-UI are enabled, use the **same** id for `weblro.WithServiceID
 
 ### Alis Build projects
 
-The service id is `local.neuron` (or `variables.neuron`) in `infra/`.
+The service id is `focus_neuron_id` from the resolve script output.
 
 ## Proto imports for Spanner tables
 

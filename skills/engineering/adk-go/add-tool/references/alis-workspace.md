@@ -8,25 +8,15 @@ Landing zone (organisation) → product → neuron (deployable service). Build a
 
 ## Neuron id vs repo path
 
-Two related concepts — do not conflate them.
+**Neuron id** — hyphen-separated platform identifier (e.g. `agents-users-v1`, `ai-v1`). Derived from the on-disk neuron path by replacing `/` with `-`.
 
-**Neuron id** (platform identifier):
-
-- From `ViewProduct`, `CreateNeuron`, or `local.neuron` / `var.neuron` in `infra/`.
-- Hyphen-separated; often encodes several logical segments and a version suffix (`…-v1`, `…-v2`, `…-admin-v1`, etc.).
-- A product can host many neuron ids at once — confirm the target id when several exist.
-
-**Neuron repo path** (on disk):
-
-- Multi-segment directory under the product, commonly ending in a version folder (`v1/`, `v2/`, …).
-- Usually **not** a single folder whose name equals the neuron id.
-- The same `<neuron-path>/` trail appears under both build and define repos.
+**Neuron repo path** — multi-segment directory under the product (e.g. `agents/users/v1`, `ai/v1`). The same trail appears under both build and define repos.
 
 ## Build repo layout (under `<neuron-path>/`)
 
 **Only `infra/` is guaranteed** on every neuron in the build repo. All other folders and files are up to the developer.
 
-`infra/` holds Terraform and `local.neuron` / `var.neuron` for the neuron id. Treat the **parent of `infra/`** as the neuron root on disk.
+`infra/` holds Terraform configuration. Treat the **parent of `infra/`** as the neuron root on disk.
 
 Go services, Dockerfiles, and entrypoints may live **anywhere under that neuron root**. Common patterns:
 
@@ -56,42 +46,39 @@ Derive Docker build paths from the filesystem (where each `Dockerfile` lives), n
 
 ## Canonical paths
 
-| Artifact | Path |
-| -------- | ---- |
-| Build repo root | `~/alis.build/<landing-zone>/build/<product>/` |
-| Define repo root | `~/alis.build/<landing-zone>/define/` |
-| Neuron build root | `~/alis.build/<lz>/build/<product>/<neuron-path>/` (parent of `infra/`) |
-| Neuron define tree | `~/alis.build/<lz>/define/<define-product-path>/<neuron-path>/` |
-
-- `<neuron-path>` — multi-segment trail from the product folder to the version leaf (e.g. `…/v1/`). Same trail in build and define.
-- `<define-product-path>` — product location under define; may be nested when the product id contains dots (`example.product` → `example/product/`). Confirm from MCP or the define repo layout — do not assume it matches the build `<product>` folder name.
+| Artifact | Script key |
+| -------- | ---------- |
+| Alis Build root | `workstations.root_directory` |
+| Neuron build root | `workstations.build_repos[]` |
+| Neuron define tree | `workstations.define_repos[]` |
+| Infra directory | `workstations.infra` |
+| Playground | `workstations.playground` |
 
 ## Discovery tier order
 
-1. **MCP** — `ListLandingZones` → `GetLandingZone` → `ViewProduct(lz, product)` for neuron ids, versions, environments. Use `CloneProduct` / `PullDefine` for canonical clone paths. Never invent environment IDs.
-2. **Parse path** — Under `~/alis.build/...`, locate `infra/` with `local.neuron` (or walk up from open files until you find it). Its parent is the neuron root; walk up to the product folder to capture `<neuron-path>`.
-3. **Neuron anchors** — `infra/` → `local.neuron` / `var.neuron`; nearest `go.mod` under that neuron root for the service you are editing; `tools.proto` at the matching define tree → `package` line.
-4. **Ask user** — Smallest missing piece only (landing zone, product, neuron id, which service when multiple `go.mod` exist, or which neuron when several exist).
+1. **Resolve script** — Run the bundled resolver. It derives organisation, product, neuron id, and all workstation paths purely from the `~/alis.build/` directory structure. Pass `--cwd` when the user's working directory differs from the target neuron:
 
-## Deriving the paired repo
+   ```bash
+   bash scripts/resolve-alis-workspace.sh --json
+   bash scripts/resolve-alis-workspace.sh --json --cwd <path>
+   ```
 
-When only one repo is checked out:
+   The JSON output provides `organisation_id`, `product_id`, `focus_neuron_id`, and `workstations` (build_repos, define_repos, infra, playground). Use these values directly — do not re-derive them.
 
-1. Record `<neuron-path>/` — trail from the product folder to the neuron root (parent of `infra/`).
-2. **Build → define** — `~/alis.build/<lz>/define/<define-product-path>/<neuron-path>/`
-3. **Define → build** — `~/alis.build/<lz>/build/<product>/<neuron-path>/`
-4. If `<define-product-path>` is unknown, inspect the define repo under `~/alis.build/<lz>/define/` or ask the user.
-5. If not under `~/alis.build` → MCP `CloneProduct` / `PullDefine`, or ask for landing zone + product.
+2. **MCP** — `ListLandingZones` → `GetLandingZone` → `ViewProduct(lz, product)` for neuron lists, versions, and environments. Use `CloneProduct` / `PullDefine` for canonical clone paths. Never invent environment IDs.
+3. **Neuron anchors** — nearest `go.mod` under the neuron build root for the service you are editing; `tools.proto` at the matching define tree → `package` line.
+4. **Ask user** — Smallest missing piece only (which service when multiple `go.mod` exist, or which neuron when several exist).
 
 ## Path discovery (within a neuron)
 
 | Need | Where |
 | ---- | ----- |
-| **Neuron root** | Parent directory of `infra/` |
-| **Neuron id** / service id | `local.neuron` or `var.neuron` in `infra/` |
+| **Neuron root** | `workstations.build_repos` from the resolve script |
+| **Neuron id** | `focus_neuron_id` from the resolve script |
+| **Infra** | `workstations.infra` from the resolve script |
 | Go **module** | Nearest `go.mod` under the neuron root for the service you are editing |
 | Entrypoint | `main.go` (or project entrypoint) in the same module directory |
-| Proto **package** | `package` line in `tools.proto` under the neuron define tree |
+| Proto **package** | `package` line in `tools.proto` under the neuron define tree (`workstations.define_repos`) |
 | Docker build context | Directory containing the target `Dockerfile` (inspect filesystem) |
 
 After **any** proto change, follow **`define-stubs.md`** before Go or `go.mod` edits.
@@ -100,10 +87,11 @@ After **any** proto change, follow **`define-stubs.md`** before Go or `go.mod` e
 
 | Do | Do not |
 | ---- | ------ |
+| Run `bash scripts/resolve-alis-workspace.sh --json` first | Manually parse `~/alis.build` paths or read infra terraform files |
 | Edit proto + code for the **same** neuron id and neuron root | Edit another neuron's files from memory or templates |
-| Anchor on `infra/` + `local.neuron`, then find the correct `go.mod` | Assume every neuron uses an `agent/` subfolder |
-| Read `package`, `go.mod`, and `local.neuron` from the open project | Invent paths from another product or chat |
-| Follow discovery tier order above | Rely on ad-hoc metadata files instead of MCP or `~/alis.build` path rules |
+| Use the resolve script output for build/define/infra paths | Assume every neuron uses an `agent/` subfolder |
+| Read `package`, `go.mod` from the open project | Invent paths from another product or chat |
+| Follow discovery tier order above | Rely on ad-hoc metadata files instead of the script or MCP |
 | Ask the user if pairing is unclear | Guess repo layout or assume neuron id equals a single folder name |
 
-User corrections override everything — re-read `package`, `go.mod`, and `local.neuron` at the path they give you.
+User corrections override everything — re-read `package` and `go.mod` at the path they give you.
