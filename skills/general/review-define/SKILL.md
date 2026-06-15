@@ -35,9 +35,21 @@ uses it as the `read_mask` on `GetContext`, so the block carries exactly those r
 names verbatim, and do **not** scan folders, derive paths from the filesystem, or ask the user
 to confirm a value that was already provided.
 
+**Confirm what was provided.** When an `<alis-runtime-context>` block is present, open the
+review by echoing back the resolved value(s) in a table so the user can see what was supplied
+and what therefore does **not** need to be derived. Use ✅ for values that came from the block:
+
+| Value | Source | Resolved as |
+| ----- | ------ | ----------- |
+| Neuron define tree | ✅ runtime context | `<workstations.define_repos value>` |
+
+Only list fields actually present in the block. Then proceed straight to the review — do not
+re-derive or re-ask for anything marked ✅.
+
 When the block is **absent or the value is missing** (for example, the skill was loaded outside
-the Alis MCP), obtain it using the "If absent" rule in the table below. **Never invent a path —
-look it up or ask.**
+the Alis MCP), obtain it using the "If absent" rule in the table below, and show the same
+confirmation table marking each value's real source (e.g. "derived by convention" or "asked
+user") instead of ✅. **Never invent a path — look it up or ask.**
 
 ### Context field used by this skill
 
@@ -138,6 +150,8 @@ Reference `file:line` so the user can jump straight to each item.
 
 - [ ] The define tree was resolved from `workstations.define_repos` (entry for `focus_neuron`),
       not guessed; the folder was confirmed before reading.
+- [ ] When a runtime-context block was present, the provided value(s) were echoed back in a
+      confirmation table (marked ✅) and were not re-derived or re-asked.
 - [ ] **Every** `.proto` file under that folder was read in full and reviewed.
 - [ ] Each AIP finding cites a specific AIP number and gives a concrete suggested fix.
 - [ ] Every service and message was checked for a clear, useful comment (not just present).
