@@ -90,6 +90,29 @@ Use this framing first:
 If the receiver is another coding agent, tell it to guide the user through DBD rather than
 handing them a disconnected checklist.
 
+## Keeping the User Oriented
+
+DBD is a three-stage journey and it is easy for a new user to lose track of which stage they are
+in, especially across long-running Define/Build/Deploy waits. Keep them oriented at all times:
+
+- **Announce every stage transition.** When you move into Define, Build, or Deploy, say so
+  explicitly ("**Stage 2 of 3 — Build**") before doing the work, and restate what that stage
+  accomplishes in one line.
+- **Show a compact DBD status marker** at each transition, while waiting on a long-running
+  operation, and in the closing summary. Mark each stage done / in-progress / next:
+
+  ```text
+  Define ✅  →  Build ⏳  →  Deploy ⬜
+  ```
+
+  For richer checkpoints (e.g. during a build wait or the final recap), use a small table with a
+  one-line "what happened" per stage and the concrete result (version, commit SHA, deployed
+  state), as in the quickstart summary.
+- **Anchor each action to its stage.** When you run a command or call a tool, tie it back to the
+  current stage so the user always knows why this step belongs where it is.
+- **Never silently jump stages.** Finishing Define and starting Build should read as a deliberate,
+  visible handoff, not a continuous stream of steps.
+
 ## Onboarding Flow
 
 Start by orienting the user:
@@ -113,6 +136,9 @@ back to the acquisition rules in the Context variables table.
 
 ### 1. Define
 
+Open this phase by announcing **Stage 1 of 3 — Define** with the status marker
+(`Define ⏳ → Build ⬜ → Deploy ⬜`) and a one-line statement of what Define accomplishes.
+
 1. Confirm the organisation (landing zone) and product. Use `organisation` and `product` from
    context if present; otherwise ask the user to pick a landing zone and product.
 2. Confirm `focus_neuron` from context, or ask for a new neuron ID or help them select an
@@ -134,10 +160,19 @@ back to the acquisition rules in the Context variables table.
 
 Do not run Define with `HEAD`. Define should lock a reviewed, pushed definition commit.
 
+**Branch-age deletion noise.** When you merge the block branch, `git` may show a large deletion
+list. This is branch-age noise — the block branch was cut from an older commit, so it "lacks"
+files master has since gained. The merge is additive; confirm with a diff that the only real
+change is the new neuron's `.proto` file before pushing. The same noise appears when merging the
+block branch in the build repo (see Build below).
+
 Explain while guiding: the proto edit/review is part of Define because this is where the team
 locks the service contract before implementation.
 
 ### 2. Build
+
+Open this phase by announcing **Stage 2 of 3 — Build** with the status marker
+(`Define ✅ → Build ⏳ → Deploy ⬜`) and a one-line statement of what Build accomplishes.
 
 1. Ask the user to open the focused neuron's build root at `workstations.build_repos`:
 
@@ -147,11 +182,22 @@ locks the service contract before implementation.
 ```
 
 2. Ask them to pull latest changes, merge the newly created block branch, and review the generated
-   service files.
-3. Ask them to install or update generated packages after Define. In VS Code this may already be
-   supported by the prepared environment; otherwise help them prepare local environment access.
+   service files. As in Define, expect a large branch-age deletion list — the merge is additive;
+   verify the only real change is the new neuron folder.
+3. Ask them to install or update generated packages after Define. Generated packages live on
+   Google Artifact Registry and are **always** access-protected, so authenticated access is
+   always required. The VS Code extension's prepared environment normally sets this up
+   automatically. When working outside that environment — or when credentials have expired (they
+   are time-limited) — dependency resolution returns 401s. Run the MCP `PrepareLocalEnvironment`
+   tool to (re)issue credentials: it returns credential material (`env`, `key_json`, `netrc`,
+   `npmrc`); write each to its documented location (`.alis/key.json`, `~/.netrc`, `~/.npmrc`)
+   without echoing secrets to the conversation.
 4. Ask them to implement or inspect the service logic, then run the Go service locally if possible.
 5. Ask them to commit and push changes such as `go.mod`, `go.sum`, and implementation files.
+   **Resolve dependencies before Build.** The block's generated `go.mod` often has no `require`
+   block, but the Dockerfile builds with `-mod=readonly`, so Build fails unless dependencies are
+   resolved and committed first. Run `go mod tidy`, then verify with `go build -mod=readonly`
+   (the same mode the cloud build uses) before committing `go.mod`/`go.sum`.
 6. Ask for the product repo commit SHA. If the user explicitly says the current checked-out commit
    should be used, `HEAD` is acceptable for build.
 7. Determine the Docker build path. Use the focused neuron's `workstations.build_repos` entry as
@@ -164,6 +210,9 @@ phase turns the locked contract into a runnable artifact.
 
 ### 3. Deploy
 
+Open this phase by announcing **Stage 3 of 3 — Deploy** with the status marker
+(`Define ✅ → Build ✅ → Deploy ⏳`) and a one-line statement of what Deploy accomplishes.
+
 1. Use `environment` from context. If absent, get the product's known environments from MCP
    `ViewProduct`; do not invent an environment ID.
 2. Ask the user which environment to deploy to, usually DEV for first onboarding.
@@ -171,8 +220,10 @@ phase turns the locked contract into a runnable artifact.
    applying.
 4. Deploy the successful build version to the selected environment.
 5. Show the user where to follow deploy logs.
-6. After deploy succeeds, direct them to the generated playground at `workstations.playground`,
-   usually:
+6. After deploy succeeds, direct them to the generated playground at `workstations.playground`.
+   The VS Code extension creates this `.playground` automatically when the workspace is
+   initialised, so it should already exist; if it is missing, the workspace likely has not been
+   initialised in the extension. It is usually at:
 
 ```text
 # from context: workstations.playground
@@ -201,8 +252,14 @@ reported where those outputs live and how to use them.
 ## Verification
 
 - [ ] The user understands DBD as the main platform workflow.
+- [ ] Each stage transition was announced (Stage N of 3) and a DBD status marker kept the user
+      oriented at transitions, during long waits, and in the closing summary.
 - [ ] Proto work is explained under Define.
 - [ ] Generated packages and implementation code are explained under Build.
+- [ ] Branch-age deletion noise on block merges was treated as additive, not as data loss.
+- [ ] Authenticated artifact-registry access was set up via the VS Code prepared environment or
+      `PrepareLocalEnvironment` (401s were not worked around).
+- [ ] `go.mod`/`go.sum` were resolved and committed before Build (verified with `-mod=readonly`).
 - [ ] Infrastructure review and environment rollout are explained under Deploy.
 - [ ] If running the quickstart, Define uses an explicit pushed commit SHA.
 - [ ] Build Docker paths use the focused neuron's `workstations.build_repos` entry from context,
