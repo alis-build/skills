@@ -9,7 +9,7 @@ metadata:
   alis.context.version: "1"
   alis.context.requires: >-
     organisation organisation_id product product_id
-    focus_neuron focus_neuron_id environment
+    focus_neuron focus_neuron_id environment session.ide
     workstations.root_directory workstations.define_repos
     workstations.build_repos workstations.playground
 ---
@@ -53,6 +53,7 @@ entry for the current workstation.
 | Neuron define tree | `workstations.define_repos` (entry for the **new** neuron) | `<root_directory>/<landing-zone>/define/<org>/<product>/<service>/<version>` |
 | Neuron build root | `workstations.build_repos` (entry for the **new** neuron) | Parent of the neuron's `infra/`; else derive from the filesystem |
 | Playground test | `workstations.playground` | `<neuron build root>/.playground/main_test.go` |
+| Host editor | `session.ide` | If absent or unknown, drive the flow through MCP tools / manual steps as today and do **not** use the deep-link commands. See **IDE Guided Mode**. |
 
 **Ids** — available directly as fields, so do not parse resource names: `organisation_id` (the
 landing-zone id), `product_id`, and `focus_neuron_id`. Only `environment id` is still derived
@@ -126,6 +127,76 @@ Define, Build, and Deploy each take minutes to complete. Handle those waits deli
   `infra/` Terraform; while Deploy runs, open the playground test so validation is ready the
   moment the operation lands.
 
+## IDE Guided Mode
+
+When this skill runs **inside a supported editor**, drive each DBD step through the editor's
+own native command instead of executing it yourself. The experience should feel hands-off /
+self-driving: you trigger the command, the editor shows what is happening, and the user stays
+in control of when to move on. This is the **same DBD sequence** as the MCP/manual mode — only
+the mechanism for actionable steps changes.
+
+**Gate.** Engage this mode only when `session.ide` (from the Runtime Context block) names a
+supported editor. When `session.ide` is absent, empty, or unrecognised, ignore this section
+entirely and follow the MCP/manual steps in the quickstart below.
+
+**Editor → CLI + URI scheme.** Derive both from `session.ide`:
+
+| `session.ide` | CLI | URI scheme |
+| ------------- | --- | ---------- |
+| `vscode` | `code` | `vscode://` |
+| `vscodium` | `codium` | `vscodium://` |
+| `cursor` | `cursor` | `cursor://` |
+| `windsurf` | `windsurf` | `windsurf://` |
+| `antigravity` | `antigravity` | `antigravity://` |
+
+**How to launch a command.** Substitute the CLI and scheme for the current `session.ide`:
+
+```bash
+<cli> --open-url "<scheme>AlisExchange.alis-build/command/<commandId>"
+```
+
+For example, in VS Code:
+
+```bash
+code --open-url "vscode://AlisExchange.alis-build/command/alis.flows.dbd.define"
+```
+
+The handler only accepts alis-declared commands, and the run commands carry their own arguments
+internally — so launch them with **no args**. If the derived CLI is not on `PATH`, fall back to
+the MCP/manual path for that step.
+
+**Launch-and-pause protocol** (the hands-off feel). For each actionable step:
+
+1. Launch the matching command for the current `session.ide`.
+2. State plainly what just opened or started in the editor and what the user should look for
+   (e.g. "I've started Define in the editor — watch the progress panel and review the generated
+   artifacts").
+3. **Pause and wait for the user to ask to continue** before moving to the next step. Do not
+   poll or auto-advance.
+
+Keep stage announcements and the `Define ✅ → Build ⏳ → Deploy ⬜` markers exactly as in the
+quickstart. Do **not** also run the MCP execution for a step the command performs (that would
+double-execute) — but still use MCP **read-only** lookups for data the terminal needs
+(organisation, product, environment). Defer neuron creation, block install, Define, Build and
+Deploy execution to the commands.
+
+**Command map** (DBD step → command id):
+
+| DBD step | Command id |
+| -------- | ---------- |
+| Create new neuron | `alis.flows.dbd.create-neuron` |
+| Install `simpleapi` block | `alis.flows.dbd.install` |
+| Open generated `.proto` | `alis.flows.dbd.open-proto` |
+| Open Source Control (commit/push) | `alis.flows.dbd.open-source-control` |
+| Run Define | `alis.flows.dbd.define` |
+| Open `methods.go` | `alis.flows.dbd.open-methods` |
+| Run Build | `alis.flows.dbd.build` |
+| Open `infra/cloudrun.tf` | `alis.flows.dbd.open-infra` |
+| Run Deploy | `alis.flows.dbd.deploy` |
+
+The playground (`.playground/main_test.go`) has **no** alis-declared command — keep pointing the
+user to `workstations.playground` as in the Deploy phase.
+
 ## Onboarding Flow
 
 Start by orienting the user:
@@ -174,6 +245,14 @@ Open this phase by announcing **Stage 1 of 3 — Define** with the status marker
 7. Ask them for the pushed definition commit SHA.
 8. Run Define with that explicit commit SHA, then wait for generated artifacts.
 
+**In IDE guided mode** (see **IDE Guided Mode**): launch the commands instead of executing
+these steps yourself, pausing after each for the user — create the neuron with
+`alis.flows.dbd.create-neuron` (3), install the block with `alis.flows.dbd.install` (4), open
+the proto with `alis.flows.dbd.open-proto` (5), open Source Control to merge/commit/push with
+`alis.flows.dbd.open-source-control` (6), and run Define with `alis.flows.dbd.define` (8). The
+Define command selects the reviewed commit itself, so step 7 (asking for the SHA) is handled in
+the editor.
+
 Do not run Define with `HEAD`. Define should lock a reviewed, pushed definition commit.
 
 **Branch-age deletion noise.** When you merge the block branch, `git` may show a large deletion
@@ -221,6 +300,12 @@ Open this phase by announcing **Stage 2 of 3 — Build** with the status marker
    paths from the filesystem.
 8. Run Build for the selected neuron and commit.
 
+**In IDE guided mode** (see **IDE Guided Mode**): launch the commands and pause after each —
+open `methods.go` to implement logic with `alis.flows.dbd.open-methods` (1, 4), open Source
+Control to commit/push with `alis.flows.dbd.open-source-control` (5), and run Build with
+`alis.flows.dbd.build` (8). Dependency resolution (`go mod tidy`, `-mod=readonly`) and the
+`PrepareLocalEnvironment` credential step still happen as described above when needed.
+
 Explain while guiding: generated packages and service code are both part of Build because this
 phase turns the locked contract into a runnable artifact.
 
@@ -251,6 +336,12 @@ Open this phase by announcing **Stage 3 of 3 — Deploy** with the status marker
 ```
 
 7. Help them run the test or call the deployed service so they see the end-to-end result.
+
+**In IDE guided mode** (see **IDE Guided Mode**): launch the commands and pause after each —
+review infrastructure with `alis.flows.dbd.open-infra` (3) and run Deploy with
+`alis.flows.dbd.deploy` (4). Environment selection (1–2) still uses MCP `ViewProduct` /
+`environment` from context. The playground (6) has no command — point the user to
+`workstations.playground` as above.
 
 Explain while guiding: Deploy applies the runtime infrastructure and proves the built artifact
 works in a real environment.
@@ -313,3 +404,6 @@ reported where those outputs live and how to use them.
       Production), and nothing was torn down without explicit confirmation.
 - [ ] If a Runtime Context block was provided, its exact paths/IDs were used and no redundant
       scanning, deriving, or asking occurred.
+- [ ] If `session.ide` named a supported editor, actionable DBD steps were driven via the
+      `alis.flows.dbd.*` deep-link commands (using that editor's CLI + scheme) with a
+      launch-and-pause hand-off; otherwise the MCP/manual path was used.
