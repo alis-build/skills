@@ -6,7 +6,7 @@ description: >
   files AIP-compliant", "review the API contract before I run Define", or any request to verify
   proto consistency, naming, structure, or documentation quality. Reviews every `.proto` file in
   the focused neuron's define repo for consistency with the Google API Improvement Proposals
-  (https://google.aip.dev/general) and ensures every message and service carries clear,
+  (https://google.aip.dev/general) and ensures every service and message carries clear,
   well-worded comments, asking the user for clarification where intent is unclear.
 metadata:
   alis.context.version: "1"
