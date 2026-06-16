@@ -47,11 +47,11 @@ entry for the current workstation.
 | ----- | ------------- | --------------------------- |
 | Organisation | `organisation` (`organisations/*`) | MCP `GetLandingZone`; else ask the user |
 | Product | `product` (`organisations/*/products/*`) | MCP `ViewProduct`; else ask the user |
-| Focused neuron | `focus_neuron` (`.../neurons/*`) | MCP `ViewProduct`; else ask (confirm when several exist) |
+| Focused neuron | `focus_neuron` (`.../neurons/*`) | This skill **always creates a new neuron** for the quickstart, so `focus_neuron` is **not** the target — treat it (or any existing service) as off-limits and ask the user for a new neuron ID instead |
 | Environment | `environment` (`.../environments/*`) | MCP `ViewProduct`; **never invent** |
 | Alis Build root | `workstations.root_directory` | Default `~/alis.build`; confirm with the user if unsure |
-| Neuron define tree | `workstations.define_repos` (entry for `focus_neuron`) | `<root_directory>/<landing-zone>/define/<org>/<product>/<service>/<version>` |
-| Neuron build root | `workstations.build_repos` (entry for `focus_neuron`) | Parent of the neuron's `infra/`; else derive from the filesystem |
+| Neuron define tree | `workstations.define_repos` (entry for the **new** neuron) | `<root_directory>/<landing-zone>/define/<org>/<product>/<service>/<version>` |
+| Neuron build root | `workstations.build_repos` (entry for the **new** neuron) | Parent of the neuron's `infra/`; else derive from the filesystem |
 | Playground test | `workstations.playground` | `<neuron build root>/.playground/main_test.go` |
 
 **Ids** — available directly as fields, so do not parse resource names: `organisation_id` (the
@@ -137,7 +137,8 @@ Start by orienting the user:
 Use the Build Kit Custom APIs flow as the mental model:
 
 - Overview: DBD is the core workflow for custom APIs.
-- Quick Start: create or select a service and install `blocks/simpleapi`.
+- Quick Start: always create a new neuron (never reuse an existing service) and install
+  `blocks/simpleapi`.
 - Define: review and edit `.proto`, commit, then run Define.
 - Build: install/update generated packages, implement service logic, commit, then build.
 - Deploy: review infrastructure, deploy, then validate through the playground.
@@ -154,14 +155,16 @@ Open this phase by announcing **Stage 1 of 3 — Define** with the status marker
 
 1. Confirm the organisation (landing zone) and product. Use `organisation` and `product` from
    context if present; otherwise ask the user to pick a landing zone and product.
-2. Confirm `focus_neuron` from context, or ask for a new neuron ID or help them select an
-   existing target service.
-3. Create the neuron in that product.
-4. Install the `simpleapi` block in the neuron.
-5. Ask the user to open the focused neuron's define tree at `workstations.define_repos`:
+2. **Always create a new neuron for the quickstart — never reuse `focus_neuron` or an existing
+   service.** Ask the user for a new neuron ID (suggest one if they have no preference). Even if a
+   `focus_neuron` is present in context, do not target it; this skill provisions a fresh,
+   throwaway learning service.
+3. Create the new neuron in that product.
+4. Install the `simpleapi` block in the new neuron.
+5. Ask the user to open the new neuron's define tree at `workstations.define_repos`:
 
 ```text
-# from context: workstations.define_repos   (entry for focus_neuron)
+# from context: workstations.define_repos   (entry for the new neuron)
 # if absent:    ~/alis.build/<landing-zone>/define/<org>/<product>/<service>/<version>
 ```
 
@@ -187,10 +190,10 @@ locks the service contract before implementation.
 Open this phase by announcing **Stage 2 of 3 — Build** with the status marker
 (`Define ✅ → Build ⏳ → Deploy ⬜`) and a one-line statement of what Build accomplishes.
 
-1. Ask the user to open the focused neuron's build root at `workstations.build_repos`:
+1. Ask the user to open the new neuron's build root at `workstations.build_repos`:
 
 ```text
-# from context: workstations.build_repos   (entry for focus_neuron)
+# from context: workstations.build_repos   (entry for the new neuron)
 # if absent:    ~/alis.build/<landing-zone>/build/<product-id>/<neuron-path>
 ```
 
@@ -213,8 +216,8 @@ Open this phase by announcing **Stage 2 of 3 — Build** with the status marker
    (the same mode the cloud build uses) before committing `go.mod`/`go.sum`.
 6. Ask for the product repo commit SHA. If the user explicitly says the current checked-out commit
    should be used, `HEAD` is acceptable for build.
-7. Determine the Docker build path. Use the focused neuron's `workstations.build_repos` entry as
-   the build root; if absent, inspect Dockerfiles under the selected neuron and derive build
+7. Determine the Docker build path. Use the new neuron's `workstations.build_repos` entry as
+   the build root; if absent, inspect Dockerfiles under the new neuron and derive build
    paths from the filesystem.
 8. Run Build for the selected neuron and commit.
 
@@ -287,6 +290,8 @@ reported where those outputs live and how to use them.
 ## Verification
 
 - [ ] The user understands DBD as the main platform workflow.
+- [ ] A brand-new neuron was created for the quickstart; no existing service (including
+      `focus_neuron`) was reused.
 - [ ] Each stage transition was announced (Stage N of 3) and a DBD status marker kept the user
       oriented at transitions, during long waits, and in the closing summary.
 - [ ] Proto work is explained under Define.
@@ -297,8 +302,8 @@ reported where those outputs live and how to use them.
 - [ ] `go.mod`/`go.sum` were resolved and committed before Build (verified with `-mod=readonly`).
 - [ ] Infrastructure review and environment rollout are explained under Deploy.
 - [ ] If running the quickstart, Define uses an explicit pushed commit SHA.
-- [ ] Build Docker paths use the focused neuron's `workstations.build_repos` entry from context,
-      or are derived from the selected neuron's filesystem when context is absent.
+- [ ] Build Docker paths use the new neuron's `workstations.build_repos` entry from context,
+      or are derived from the new neuron's filesystem when context is absent.
 - [ ] Deploy targets a real environment from the Runtime Context or product context.
 - [ ] The user validates the deployed service through the playground or an equivalent call.
 - [ ] Long-running Define/Build/Deploy waits used MCP status/wait tools, not shell `sleep` loops.
