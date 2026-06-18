@@ -1,0 +1,45 @@
+package tools
+
+import (
+	"context"
+
+	"go.alis.build/alog"
+	lro "go.alis.build/lro/v2"
+	"google.golang.org/grpc"
+
+	pb "REPLACE_WITH_YOUR_PROTOBUF_GO_IMPORT"
+)
+
+// LRO is the shared long-running operations client for tools and the LRO web sublauncher.
+var LRO *lro.Client
+
+// InitLRO constructs the LRO client from environment configuration and registers
+// resumable operation handlers. serviceID must match the neuron id used when the
+// serviceID must match focus_neuron_id from resolve-alis-workspace.sh (not infra Terraform locals).
+func InitLRO(ctx context.Context, serviceID string) error {
+	client, err := lro.NewFromEnv(ctx, serviceID)
+	if err != nil {
+		return err
+	}
+	// Register one AddResumableHandler per LRO tool (unique resume path string).
+	// if err := client.AddResumableHandler(REPLACE_WITH_LRO_RESUME_PATH, REPLACE_WITH_LRO_HANDLER); err != nil {
+	// 	return err
+	// }
+	LRO = client
+	return nil
+}
+
+// MustInitLRO calls InitLRO and terminates the process on failure.
+func MustInitLRO(ctx context.Context, serviceID string) {
+	if err := InitLRO(ctx, serviceID); err != nil {
+		alog.Fatalf(ctx, "instantiating LRO client: %v", err)
+	}
+}
+
+// RegisterGRPC registers ToolsService and google.longrunning.Operations on the gRPC server.
+func RegisterGRPC(registrar grpc.ServiceRegistrar) {
+	pb.RegisterToolsServiceServer(registrar, toolsService)
+	if LRO != nil {
+		LRO.RegisterGRPC(registrar)
+	}
+}

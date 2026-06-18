@@ -4,3 +4,7 @@ __pycache__/
 .vscode/
 .cursor/
 .env
+
+# Skill eval run artifacts (outputs, grading, benchmarks, review HTML)
+.evals/
+evals/

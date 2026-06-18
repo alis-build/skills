@@ -1,0 +1,42 @@
+// Wire into agent main.go (imports + startup + launcher stack).
+//
+// Only the imports and sublaunchers marked REQUIRED are needed for LRO.
+// Other sublaunchers (webui, agui, a2a, scheduler, agentengine) are independent —
+// include them only if the agent uses them.
+
+import (
+	weblro "go.alis.build/adk/launchers/lro" // REQUIRED for LRO
+	// ... existing ADK launcher imports ...
+	"REPLACE_WITH_YOUR_MODULE/internal/tools"
+)
+
+// Must match focus_neuron_id from resolve-alis-workspace.sh.
+const lroServiceID = "REPLACE_WITH_LRO_SERVICE_ID"
+
+func main() {
+	ctx := context.Background()
+	// ... session, memory, agent config ...
+
+	// Shared LRO client for tools and the lro web sublauncher (alis.lro.v2).
+	tools.MustInitLRO(ctx, lroServiceID)
+
+	// Only include sublaunchers the agent actually uses.
+	// LRO requires: web + api (for /api/run resume) + lro.
+	// webui, agui, a2a, scheduler, agentengine are independent.
+	l := universal.NewLauncher(web.NewLauncher(
+		// webagentengine.NewLauncher(agentEngineID),  // only if using Agent Engine
+		// webui.NewLauncher(),                         // only if serving the ADK web UI
+		webapi.NewLauncher(),                           // REQUIRED for LRO resume via /api/run
+		// weba2a.NewLauncher(),                        // only if using A2A protocol
+		weblro.NewLauncher(                             // REQUIRED
+			weblro.WithServiceID(lroServiceID),
+			weblro.WithLROClient(tools.LRO),
+		),
+	))
+	// l.Execute(ctx, launcherConfig, os.Args[1:])
+}
+
+// Deployment CLI args must include "lro" (and "api" for resume).
+// Dockerfile: CMD ["/app/main", "web", "-port", "8080", "api", "lro"]
+// Cloud Run:  args = ["web", "-port", "8080", "api", "lro"]
+// Add other sublauncher args (webui, agui, scheduler) only if used.
