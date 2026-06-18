@@ -1,0 +1,131 @@
+# Terraform module for AG-UI thread history (Spanner).
+# Place under infra/modules/alis.agui.history.v1/main.tf
+# and reference from infra/main.tf.
+
+terraform {
+  required_providers {
+    alis = {
+      source = "alis-exchange/alis"
+    }
+  }
+}
+
+variable "ALIS_OS_PROJECT" {
+  type = string
+}
+
+variable "ALIS_MANAGED_SPANNER_PROJECT" {
+  type = string
+}
+
+variable "ALIS_MANAGED_SPANNER_INSTANCE" {
+  type = string
+}
+
+variable "ALIS_MANAGED_SPANNER_DB" {
+  type = string
+}
+
+variable "NEURON" {
+  type = string
+}
+
+resource "alis_google_spanner_table" "threads" {
+  project         = var.ALIS_MANAGED_SPANNER_PROJECT
+  instance        = var.ALIS_MANAGED_SPANNER_INSTANCE
+  database        = var.ALIS_MANAGED_SPANNER_DB
+  name            = "${replace(var.ALIS_OS_PROJECT, "-", "_")}_${replace(var.NEURON, "-", "_")}_Threads"
+  prevent_destroy = false
+
+  schema = {
+    columns = [
+      {
+        name           = "key",
+        type           = "STRING",
+        is_primary_key = true,
+        required       = true
+      },
+      {
+        name          = "Thread",
+        type          = "PROTO"
+        proto_package = "alis.agui.history.v1.Thread"
+        required      = true
+      },
+      {
+        name          = "Policy"
+        type          = "PROTO"
+        proto_package = "google.iam.v1.Policy"
+        required      = true
+      },
+      {
+        name            = "create_time",
+        type            = "TIMESTAMP",
+        required        = false,
+        is_computed     = true,
+        computation_ddl = "TIMESTAMP_ADD(TIMESTAMP_SECONDS(Thread.create_time.seconds),INTERVAL CAST(FLOOR(Thread.create_time.nanos / 1000) AS INT64) MICROSECOND)",
+        is_stored       = true
+      },
+    ]
+  }
+}
+
+resource "alis_google_spanner_table" "user_thread_states" {
+  project         = var.ALIS_MANAGED_SPANNER_PROJECT
+  instance        = var.ALIS_MANAGED_SPANNER_INSTANCE
+  database        = var.ALIS_MANAGED_SPANNER_DB
+  name            = "${replace(var.ALIS_OS_PROJECT, "-", "_")}_${replace(var.NEURON, "-", "_")}_UserThreadStates"
+  prevent_destroy = false
+
+  schema = {
+    columns = [
+      {
+        name           = "key",
+        type           = "STRING",
+        is_primary_key = true,
+        required       = true
+      },
+      {
+        name          = "UserThreadState",
+        type          = "PROTO"
+        proto_package = "alis.agui.history.v1.UserThreadState"
+        required      = true
+      },
+      {
+        name            = "thread",
+        type            = "STRING",
+        required        = false
+        is_stored       = true
+        is_computed     = true
+        computation_ddl = "REGEXP_EXTRACT(UserThreadState.name, r'^(threads/[^/]+)')",
+      },
+      {
+        name            = "user",
+        type            = "STRING",
+        required        = false
+        is_stored       = true
+        is_computed     = true
+        computation_ddl = "UserThreadState.user"
+      },
+      {
+        name            = "update_time",
+        type            = "TIMESTAMP",
+        required        = false,
+        is_computed     = true,
+        computation_ddl = "TIMESTAMP_ADD(TIMESTAMP_SECONDS(UserThreadState.update_time.seconds),INTERVAL CAST(FLOOR(UserThreadState.update_time.nanos / 1000) AS INT64) MICROSECOND)",
+        is_stored       = true
+      },
+    ]
+  }
+}
+
+resource "alis_google_spanner_table_foreign_key" "user_thread_states_threads_fk" {
+  project           = var.ALIS_MANAGED_SPANNER_PROJECT
+  instance          = var.ALIS_MANAGED_SPANNER_INSTANCE
+  database          = var.ALIS_MANAGED_SPANNER_DB
+  name              = "FK_${replace(var.ALIS_OS_PROJECT, "-", "_")}_${replace(var.NEURON, "-", "_")}_UserThreadStates_Threads_key"
+  table             = alis_google_spanner_table.user_thread_states.name
+  column            = "thread"
+  referenced_table  = alis_google_spanner_table.threads.name
+  referenced_column = "key"
+  on_delete         = "CASCADE"
+}

@@ -1,4 +1,8 @@
-// internal/scheduler/scheduler.go — A2A scheduler extension backed by Spanner + Cloud Tasks.
+// Capability: Scheduler service bootstrap
+// Contract: Export var Service *schedulerservice.SchedulerService and func MustInitScheduler(ctx).
+//           Uses central NeuronId for Cloud Tasks queue ({NeuronId}-a2a-scheduler) and Spanner
+//           table prefix. Reads ALIS_MANAGED_SPANNER_*, ALIS_OS_PROJECT, ALIS_REGION, AGENT_SERVICE_URL.
+// Greenfield default path: internal/scheduler/scheduler.go
 
 package scheduler
 
@@ -7,32 +11,28 @@ import (
 	"fmt"
 	"strings"
 
+	"REPLACE_WITH_YOUR_MODULE/internal/info"
 	schedulerext "go.alis.build/a2a/extension/scheduler"
 	schedulerservice "go.alis.build/a2a/extension/scheduler/service"
 	"go.alis.build/alog"
 	"go.alis.build/utils/env"
 )
 
-// Must match focus_neuron_id from resolve-alis-workspace.sh.
-const serviceID = "REPLACE_WITH_SERVICE_ID"
-
-// Service is the A2A scheduler extension service (Spanner + Cloud Tasks).
 var Service *schedulerservice.SchedulerService
 
-// InitScheduler constructs Service from environment configuration.
 func InitScheduler(ctx context.Context) error {
 	spannerProject := env.MustGet("ALIS_MANAGED_SPANNER_PROJECT")
 	spannerInstance := env.MustGet("ALIS_MANAGED_SPANNER_INSTANCE")
 	spannerDatabase := env.MustGet("ALIS_MANAGED_SPANNER_DB")
 
 	project := env.MustGet("ALIS_OS_PROJECT")
-	tablePrefix := strings.ReplaceAll(project, "-", "_") + "_" + strings.ReplaceAll(serviceID, "-", "_")
+	tablePrefix := strings.ReplaceAll(project, "-", "_") + "_" + strings.ReplaceAll(info.NeuronId, "-", "_")
 
 	var err error
 	Service, err = schedulerservice.NewSchedulerService(ctx, &schedulerservice.SchedulerServiceConfig{
 		SpannerProject:    spannerProject,
 		SchedulingProject: project,
-		SchedulingQueue:   serviceID + "-a2a-scheduler",
+		SchedulingQueue:   info.NeuronId + "-a2a-scheduler",
 		SchedulingRegion:  env.MustGet("ALIS_REGION"),
 		Instance:          spannerInstance,
 		ServiceAccount:    fmt.Sprintf("alis-build@%s.iam.gserviceaccount.com", project),
@@ -49,7 +49,6 @@ func InitScheduler(ctx context.Context) error {
 	return nil
 }
 
-// MustInitScheduler calls InitScheduler and terminates the process on failure.
 func MustInitScheduler(ctx context.Context) {
 	if err := InitScheduler(ctx); err != nil {
 		alog.Fatalf(ctx, "%v", err)

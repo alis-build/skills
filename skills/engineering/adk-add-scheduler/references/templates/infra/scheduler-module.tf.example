@@ -48,7 +48,7 @@ resource "google_cloud_run_service_iam_member" "scheduler_invoker" {
 }
 
 # Cloud Tasks queue for scheduled task delivery.
-# Name must match the Go serviceID + "-a2a-scheduler" pattern.
+# Name must match info.NeuronId + "-a2a-scheduler" pattern.
 resource "google_cloud_tasks_queue" "scheduler" {
   name     = "${var.neuron}-a2a-scheduler"
   location = var.alis_region

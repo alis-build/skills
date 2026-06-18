@@ -1,0 +1,42 @@
+# Cloud Run container args and env vars for AG-UI on the agent service.
+# Dockerfile CMD must use the same sublauncher args as Cloud Run.
+#
+# Only include sublauncher args for sublaunchers the agent actually uses.
+# When scheduler is also wired, add "scheduler" and "-app_name=..." (see add-scheduler).
+
+# Minimal (AG-UI with thread history):
+containers {
+  command = ["/app/main"]
+  args    = ["web", "-port", "8080", "agui"]
+
+  env {
+    name  = "ALIS_OS_PROJECT"
+    value = var.ALIS_OS_PROJECT
+  }
+  env {
+    name  = "ALIS_MANAGED_SPANNER_PROJECT"
+    value = var.ALIS_MANAGED_SPANNER_PROJECT
+  }
+  env {
+    name  = "ALIS_MANAGED_SPANNER_INSTANCE"
+    value = var.ALIS_MANAGED_SPANNER_INSTANCE
+  }
+  env {
+    name  = "ALIS_MANAGED_SPANNER_DB"
+    value = var.ALIS_MANAGED_SPANNER_DB
+  }
+  env {
+    name  = "IDENTITY_SERVICE_URL"
+    value = local.identity_service_url
+  }
+  env {
+    name  = "AGENT_SERVICE_URL"
+    value = local.agent_service_url
+  }
+}
+
+# Dockerfile (must match args above):
+# CMD ["/app/main", "web", "-port", "8080", "agui"]
+
+# Typical (with scheduler — -app_name must match info.AppName / llmagent.Config.Name):
+# args = ["web", "-port", "8080", "agui", "scheduler", "-app_name=my.neuron.v1"]

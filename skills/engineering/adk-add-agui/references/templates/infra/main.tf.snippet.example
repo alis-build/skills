@@ -1,0 +1,14 @@
+# Add to infra/main.tf — reference the AG-UI history module.
+# NEURON must match info.NeuronId (hyphenated) / local.neuron in variables.tf.
+
+module "alis_agui_history_v1" {
+  source = "./modules/alis.agui.history.v1"
+
+  ALIS_OS_PROJECT               = var.ALIS_OS_PROJECT
+  ALIS_MANAGED_SPANNER_PROJECT  = var.ALIS_MANAGED_SPANNER_PROJECT
+  ALIS_MANAGED_SPANNER_INSTANCE = var.ALIS_MANAGED_SPANNER_INSTANCE
+  ALIS_MANAGED_SPANNER_DB       = var.ALIS_MANAGED_SPANNER_DB
+  NEURON                        = local.neuron
+
+  depends_on = [google_project_service.environment]
+}

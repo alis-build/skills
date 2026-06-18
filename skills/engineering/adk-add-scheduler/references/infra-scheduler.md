@@ -23,11 +23,11 @@ Ask the user to run define on the package or neuron after editing the proto. See
 
 ### Cloud Tasks queue
 
-The scheduler delivers scheduled invocations via Cloud Tasks. The queue name must follow the pattern `{serviceID}-a2a-scheduler`:
+The scheduler delivers scheduled invocations via Cloud Tasks. The queue name must follow the pattern `{NeuronId}-a2a-scheduler` (from `info.NeuronId`):
 
 ```hcl
 resource "google_cloud_tasks_queue" "a2a_scheduler" {
-  name     = "${local.service_id}-a2a-scheduler"
+  name     = "${local.neuron}-a2a-scheduler"
   location = var.region
   project  = var.project
 }
@@ -36,14 +36,14 @@ resource "google_cloud_tasks_queue" "a2a_scheduler" {
 If not using Terraform, create the queue manually or via `gcloud`:
 
 ```bash
-gcloud tasks queues create {serviceID}-a2a-scheduler \
+gcloud tasks queues create {NeuronId}-a2a-scheduler \
   --location={region} \
   --project={project}
 ```
 
 ### Spanner table
 
-The scheduler stores cron state in a Spanner table. The table name follows the pattern `{project}_{serviceID}_Crons` (hyphens replaced with underscores). A full Terraform module with the table schema is at **`templates/infra/scheduler-module.tf.example`**.
+The scheduler stores cron state in a Spanner table. The table name follows the pattern `{project}_{NeuronId}_Crons` (hyphens replaced with underscores). A full Terraform module with the table schema is at **`templates/infra/scheduler-module.tf.example`**.
 
 The table uses `PROTO` typed columns for cron and policy storage. The Spanner database must exist and the service account must have appropriate permissions.
 
@@ -104,7 +104,7 @@ In Alis Build infrastructure, the standard variable names are:
 - `var.ALIS_MANAGED_SPANNER_PROJECT`, `var.ALIS_MANAGED_SPANNER_INSTANCE`, `var.ALIS_MANAGED_SPANNER_DB`
 - `local.agent_service_url` (derived from Cloud Run service URL)
 
-The service id is `local.neuron`. The service account pattern is `alis-build@{project}.iam.gserviceaccount.com`.
+`local.neuron` in `variables.tf` must match `info.NeuronId` in Go (hyphenated `focus_neuron_id`). The Cloud Tasks queue is `{NeuronId}-a2a-scheduler`. The service account pattern is `alis-build@{project}.iam.gserviceaccount.com`.
 
 ## Launcher CLI args (Dockerfile + Cloud Run)
 
@@ -113,10 +113,10 @@ The ADK binary uses positional CLI args to activate each sublauncher. Add `sched
 Template: **`templates/infra/cloudrun-args.tf.snippet.example`**
 
 ```
-args = ["web", "-port", "8080", "webui", "-api_server_address=/api", "api", "lro", "scheduler", "-app_name=REPLACE_WITH_ADK_APP_NAME"]
+args = ["web", "-port", "8080", "webui", "-api_server_address=/api", "api", "lro", "scheduler", "-app_name=my.neuron.v1"]
 ```
 
-The `-app_name` flag must match `llmagent.Config.Name` (the `adkAppName` const in main.go). Without `scheduler` in the args, the sublauncher won't activate even though it's registered in Go code.
+The `-app_name` flag must match `info.AppName` / `llmagent.Config.Name`. Without `scheduler` in the args, the sublauncher won't activate even though it's registered in Go code.
 
 ## Terraform module setup
 
@@ -124,7 +124,7 @@ The `-app_name` flag must match `llmagent.Config.Name` (the `adkAppName` const i
 |------|----------|
 | Copy scheduler module to `infra/modules/alis.a2a.extension.scheduler.v1/` | `templates/infra/scheduler-module.tf.example` |
 | Add `module` block to `infra/main.tf` | `templates/infra/main.tf.snippet.example` |
-| Confirm `neuron` variable matches Go `serviceID` | — |
+| Confirm `neuron` variable matches `info.NeuronId` in Go | — |
 
 ## Deploy
 
@@ -132,9 +132,9 @@ The agent does **not** run `terraform apply` or deploy commands. After editing i
 
 ## Verify after deploy
 
-- Queue exists: `{serviceID}-a2a-scheduler` in the agent region.
-- Spanner table `{project}_{serviceID}_Crons` exists.
-- `serviceID` in Go matches the infra service identifier.
+- Queue exists: `{NeuronId}-a2a-scheduler` in the agent region.
+- Spanner table `{project}_{NeuronId}_Crons` exists.
+- `info.NeuronId` in Go matches `local.neuron` in infra.
 - Deployment target includes all six scheduler env vars.
-- Dockerfile CMD and Cloud Run args include `scheduler` and `-app_name=<adkAppName>`.
+- Dockerfile CMD and Cloud Run args include `scheduler` and `-app_name=<info.AppName>` and match each other.
 - Agent starts without `env.MustGet` panics for scheduler variables.

@@ -15,6 +15,8 @@ metadata:
 
 Registers the **console** sublauncher on the existing ADK `launchersweb.NewLauncher` stack so users get the embedded Vue web UI at `/`, runtime config, and `/auth/me`. The bundled SPA depends on **add-agui** (threads/chat) and **add-scheduler** (automation) — wire those sublaunchers in Go and include `agui`, `scheduler`, and `-app_name=...` in deployment CLI args alongside `console`. One import, one sublauncher argument (registered **last**), and optional branding in `main.go`.
 
+Before editing, search the entrypoint for existing `launchersweb.NewLauncher` wiring and extend it in place. This skill adds a single sublauncher call — no new packages are typically created.
+
 ## Runtime Context
 
 This skill may be loaded with an `<alis-runtime-context>` block injected at the top of these
@@ -269,6 +271,7 @@ go run . web -port 8080 scheduler -app_name=REPLACE_WITH_ADK_APP_NAME agui conso
 
 ## Pitfalls
 
+- Refactoring existing launcher wiring to match skill templates without being asked — discover existing `launchersweb.NewLauncher` call and extend it
 - Using `google.golang.org/adk/cmd/launcher/console` instead of `go.alis.build/adk/launchers/console` — different launcher, different integration.
 - Adding console outside `launchersweb.NewLauncher` — it must be a **sibling** sublauncher with `webui`, `webapi`, `webagui`, etc.
 - Registering console before other sublaunchers — its `GET /` catch-all shadows `agui`, `scheduler`, and other host routes.

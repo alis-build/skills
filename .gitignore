@@ -8,3 +8,6 @@ __pycache__/
 # Skill eval run artifacts (outputs, grading, benchmarks, review HTML)
 .evals/
 evals/
+
+docs/specs/
+AGENTS.md

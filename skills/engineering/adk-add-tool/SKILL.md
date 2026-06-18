@@ -16,6 +16,8 @@ metadata:
 
 Proto comments become the model-facing tool description and JSON Schema. Handlers run in-process via ADK `functiontool`; the same service methods can later back gRPC if you register them.
 
+Before creating any new package, search the build module for existing tools wiring using discovery signals (`MyTools`, `NewTool`, `ToolsService`). Extend existing packages rather than creating parallel ones. Do not refactor the user's layout to match templates. Templates provide greenfield defaults for new projects only.
+
 ## Runtime Context
 
 This skill may be loaded with an `<alis-runtime-context>` block injected at the top of these
@@ -26,7 +28,7 @@ below and uses it as the `read_mask` on `GetContext` — the block carries **onl
 
 1. **Resolve script** — `bash scripts/resolve-alis-workspace.sh --json` (pass `--cwd` when the working directory differs from the target neuron). Prefer script output when a field is present.
 2. **`<alis-runtime-context>`** — for any **read-mask** field still missing after the script, use the block verbatim. Do not re-derive or ask the user to confirm values already provided.
-3. **MCP** — `ListLandingZones` → `GetLandingZone` → `ViewProduct(lz, product)` for neuron lists, versions, and environments. Use `CloneProduct` / `PullDefine` for canonical clone paths. Never invent environment IDs.
+3. **MCP** — `ListLandingZones` -> `GetLandingZone` -> `ViewProduct(lz, product)` for neuron lists, versions, and environments. Use `CloneProduct` / `PullDefine` for canonical clone paths. Never invent environment IDs.
 4. **Neuron anchors** — nearest `go.mod` under `workstations.build_repos`; `tools.proto` under `workstations.define_repos`.
 5. **Ask user** — Smallest missing piece only.
 
@@ -37,7 +39,7 @@ below and uses it as the `read_mask` on `GetContext` — the block carries **onl
 | Value | Context field | If absent (after script + block) |
 | ----- | ------------- | -------------------------------- |
 | Neuron / service id | `focus_neuron_id` | Neuron scope for `tools.proto` and handler wiring |
-| Neuron build root | `workstations.build_repos` | Go module with `internal/tools` and entrypoint |
+| Neuron build root | `workstations.build_repos` | Go module with tools package and entrypoint |
 | Neuron define tree | `workstations.define_repos` | Define package containing `tools.proto` |
 
 ## Available scripts
@@ -50,7 +52,7 @@ below and uses it as the `read_mask` on `GetContext` — the block carries **onl
 bash scripts/resolve-alis-workspace.sh --json
 ```
 
-Then read **`references/workspace-tools.md`**, **`references/alis-workspace.md`**, and **`references/define-stubs.md`**. Follow **`references/alis-workspace.md`** resolution order (script → runtime context → MCP → neuron anchors) — never derive paths from another product or chat.
+Then read **`references/workspace-tools.md`**, **`references/alis-workspace.md`**, and **`references/define-stubs.md`**. Follow **`references/alis-workspace.md`** resolution order (script -> runtime context -> MCP -> neuron anchors) — never derive paths from another product or chat.
 
 ## When to use
 
@@ -66,12 +68,12 @@ See the skill **description** (primary trigger). Sync proto-backed tools only; u
 ## Architecture
 
 ```
-tools.proto  →  define (user, Alis Build DBD)  →  generated Go (JsonSchema + descriptions)
-                    ↓
-              internal/tools/service.go  (handlers)
-                    ↓
-              internal/tools/tools.go    (NewTool bridge)
-                    ↓
+tools.proto  ->  define (user, Alis Build DBD)  ->  generated Go (JsonSchema + descriptions)
+                    |
+              tools service package  (handlers)
+                    |
+              tools package          (NewTool bridge)
+                    |
               agent entrypoint Tools: []tool.Tool
 ```
 
@@ -79,7 +81,7 @@ Why proto-first: RPC comments become `ToolsService_<Rpc>_FullMethodDescription`;
 
 Code generation (define) is a user-side operation — the agent does not have access to the build pipeline, so always ask the user to run it.
 
-After proto edits, follow **`references/define-stubs.md`** in order: ask **run a define on the package** (or neuron) → **stop** (no `go.mod`, no Go) → ask user to **install required dependencies** → then implement Go.
+After proto edits, follow **`references/define-stubs.md`** in order: ask **run a define on the package** (or neuron) -> **stop** (no `go.mod`, no Go) -> ask user to **install required dependencies** -> then implement Go.
 
 ## Phase A — Bootstrap (one-time)
 
@@ -90,9 +92,9 @@ Summary:
 1. Add `tools.proto` from **`references/templates/tools.proto.example`** with `json_schema.generate` enabled (see **`references/json-schema.md`**).
 2. Ask the user to **run a define on the neuron** (bootstrap) or **run a define on the package** `<package from tools.proto>`; wait (**`references/define-stubs.md`**).
 3. Ask the user to **install required dependencies**; wait.
-4. Copy **`references/templates/tools.go.example`** → `internal/tools/tools.go`.
-5. Copy **`references/templates/service.go.example`** → `internal/tools/service.go` (start with empty `MyTools()` if only wiring).
-6. Copy **`references/templates/auth.go.example`** → `internal/auth/auth.go` if needed.
+4. Copy **`references/templates/tools.go.example`** -> tools package.
+5. Copy **`references/templates/service.go.example`** -> tools service (start with empty `MyTools()` if only wiring).
+6. Copy **`references/templates/auth.go.example`** -> auth package if needed.
 7. Wire the entrypoint per **`references/templates/agent-wiring.go.example`**.
 8. Optionally **`references/templates/grpc.go.example`** when a gRPC server exists.
 
@@ -104,7 +106,7 @@ Read and follow **`references/sync-tool-checklist.md`**.
 
 For each tool:
 
-1. Add RPC + messages + comments to **this agent’s** `tools.proto` (`references/workspace-tools.md`).
+1. Add RPC + messages + comments to **this agent's** `tools.proto` (`references/workspace-tools.md`).
 2. Ask the user to **run a define on the package** `<proto package>`; **stop** — no `go.mod` or Go yet.
 3. Ask the user to **install required dependencies**; wait.
 4. Implement handler on `myToolsService`.
@@ -131,12 +133,14 @@ Group tools with `NewToolSet` and set `llmagent.Config.Toolsets` instead of (or 
 
 ## Pitfalls
 
-- Editing a `tools.proto` or agent module that is not in the user’s current workspace — read **`references/workspace-tools.md`**.
-- Running define yourself — the agent does not have access to the build pipeline; ask the user.
-- `go mod edit` / `go get` protobuf **before** define and install — stubs are not published yet.
-- Continuing Go work before define **and** dependency install finish.
-- LRO tools → use add-lro; sync and LRO may share `tools.proto`.
-- Registering the same tool in both `Tools` and `Toolsets`.
+- Creating new tools packages without discovering existing ones — search for `MyTools`, `NewTool`, `ToolsService` before creating
+- Refactoring the user's layout to match skill templates without being asked
+- Editing a `tools.proto` or agent module that is not in the user's current workspace — read **`references/workspace-tools.md`**
+- Running define yourself — the agent does not have access to the build pipeline; ask the user
+- `go mod edit` / `go get` protobuf **before** define and install — stubs are not published yet
+- Continuing Go work before define **and** dependency install finish
+- LRO tools -> use add-lro; sync and LRO may share `tools.proto`
+- Registering the same tool in both `Tools` and `Toolsets`
 
 ## Templates index
 
@@ -144,7 +148,7 @@ Group tools with `NewToolSet` and set `llmagent.Config.Toolsets` instead of (or 
 |------|---------|
 | `references/workspace-tools.md` | Quick path discovery checklist |
 | `references/alis-workspace.md` | Alis Build repo layout and path discovery |
-| `references/define-stubs.md` | define → install deps → then Go (strict order, shared) |
+| `references/define-stubs.md` | define -> install deps -> then Go (strict order, shared) |
 | `references/json-schema.md` | JSON Schema proto options (applied when define runs) |
 | `references/templates/tools.proto.example` | Starter ToolsService + messages |
 | `references/templates/tools.go.example` | NewTool, NewToolForEmpty, NewToolSet |

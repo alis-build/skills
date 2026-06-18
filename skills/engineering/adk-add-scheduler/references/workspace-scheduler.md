@@ -1,14 +1,25 @@
 # Find the correct agent and infra paths (Scheduler)
 
-Identify the agent module and infrastructure config before editing. The scheduler has no proto or define step for Go wiring — only infra and optional proto imports for Spanner tables.
+Identify the agent module and infrastructure config before editing.
 
 ## Platform hierarchy
 
 Landing zone (organisation) → product → neuron (deployable service). Build and define live in separate repos under `~/alis.build/`.
 
+## Central identity
+
+`AppName` and `NeuronId` must live in **one editable place**. The exact package does not matter as long as there is exactly one source and all consumers import from it. The scheduler uses central `NeuronId` for queue name and Spanner prefix — do not declare a local `serviceID` const.
+
+| Constant | Form | Example |
+|----------|------|---------|
+| `NeuronId` | hyphenated (`focus_neuron_id`) | `my-neuron-v1` |
+| `AppName` | same id, `-` → `.` | `my.neuron.v1` |
+
+**Before wiring scheduler:** search the module for existing identity. If found in one place, use it. If scattered, consolidate (with user permission). If absent, create from `references/templates/central-identity.go.example` (greenfield default: `internal/info/info.go`).
+
 ## Neuron id vs repo path
 
-**Neuron id** — hyphen-separated platform identifier (e.g. `agents-users-v1`, `ai-v1`). Derived from the on-disk neuron path by replacing `/` with `-`.
+**Neuron id** — hyphen-separated platform identifier (e.g. `agents-users-v1`, `ai-v1`). Derived from the on-disk neuron path by replacing `/` with `-`. Stored as `info.NeuronId`.
 
 **Neuron repo path** — multi-segment directory under the product (e.g. `agents/users/v1`, `ai/v1`). The same trail appears under build and define when proto work is needed.
 
@@ -28,64 +39,44 @@ Landing zone (organisation) → product → neuron (deployable service). Build a
 
 ## Discovery tier order
 
-1. **Resolve script** — Run the bundled resolver. It derives organisation, product, neuron id, and all workstation paths purely from the `~/alis.build/` directory structure. Pass `--cwd` when the user's working directory differs from the target neuron:
+1. **Resolve script** — Run the bundled resolver:
 
    ```bash
    bash scripts/resolve-alis-workspace.sh --json
    bash scripts/resolve-alis-workspace.sh --json --cwd <path>
    ```
 
-   The JSON output provides `organisation_id`, `product_id`, `focus_neuron_id`, and `workstations` (build_repos, define_repos, infra, playground). Use these values directly — do not re-derive them.
-
-2. **`<alis-runtime-context>`** — When LoadSkill injected the block, use its values for any field not already set by the resolve script. Do not re-derive or re-ask for values present in the block.
-
-3. **MCP** — `ListLandingZones` → `GetLandingZone` → `ViewProduct(lz, product)` for neuron lists, versions, and environments. Use `CloneProduct` / `PullDefine` for canonical clone paths. Never invent environment IDs.
-4. **Neuron anchors** — nearest `go.mod` under the neuron build root for the service you are editing.
-5. **Ask user** — Smallest missing piece only (which neuron when several exist).
+2. **`<alis-runtime-context>`** — Use injected values when present.
+3. **MCP** — `ListLandingZones` → `GetLandingZone` → `ViewProduct`.
+4. **Neuron anchors** — nearest `go.mod` under the neuron build root.
+5. **Ask user** — Smallest missing piece only.
 
 ## Quick discovery (before any edit)
 
 1. **Neuron root** — `workstations.build_repos` from the resolve script.
-
-2. **Go module** — nearest `go.mod` under that root. The module path tells you where `internal/scheduler` and the entrypoint live.
-
-3. **Service id** — `focus_neuron_id` from the resolve script. Drives Cloud Tasks queue name (`{id}-a2a-scheduler`) and Spanner table prefix.
-
-4. **Agent app name** — `llmagent.Config.Name` in the entrypoint — passed as the first argument to `webscheduler.NewLauncher`.
-
-5. **Infra directory** — `workstations.infra` from the resolve script. Terraform config for Cloud Tasks queue, Spanner, and deployment env vars.
-
-## Finding the service id
-
-The service id must match the `serviceID` const in `internal/scheduler/scheduler.go`.
-
-| Source | Where to look |
-| ------ | ------------- |
-| Resolve script (default) | `focus_neuron_id` from `bash scripts/resolve-alis-workspace.sh --json` |
-| Existing LRO | Reuse `lroServiceID` from the entrypoint |
-| Existing AG-UI | Reuse the service id from `webagui.NewLauncher` |
-| Unclear | Ask the user — do not guess from folder names |
+2. **Go module** — nearest `go.mod` under that root.
+3. **Identity** — search for existing central identity; if absent, `focus_neuron_id` → `NeuronId`, derive `AppName`.
+4. **Infra directory** — `workstations.infra` for Cloud Tasks queue and Spanner Terraform.
 
 ## Scheduler-specific checks
 
 | Check | Where |
 | ----- | ----- |
-| `serviceID` | Go const in `internal/scheduler/scheduler.go` |
-| Cloud Tasks queue name | `{serviceID}-a2a-scheduler` in scheduler config |
-| Spanner table prefix | `{project}_{serviceID}` (hyphens to underscores) |
-| Scheduler env vars | Deployment config (Agent Engine `deployment_spec`, Cloud Run env) |
+| `NeuronId` | Central identity package (not a local const in scheduler code) |
+| Cloud Tasks queue name | `{NeuronId}-a2a-scheduler` |
+| Spanner table prefix | `{project}_{NeuronId}` (hyphens to underscores) |
+| `AppName` | First arg to `webscheduler.NewLauncher`; `-app_name` CLI flag |
 | gRPC interceptor | `schedulerservice.UnaryServerInterceptor()` on `grpc.NewServer` |
-| Host mux registration | `mux.HandleGRPC(grpcServer)` in entrypoint |
+| `WithGRPCRegistrar` | **required** on `webscheduler.NewLauncher` |
+| Shared gRPC host | Same `grpcServer` as **add-agui** when both wired |
 
 ## Hard rules
 
 | Do | Do not |
 | ---- | ------ |
-| Run `bash scripts/resolve-alis-workspace.sh --json` first | Manually parse `~/alis.build` paths or read infra terraform files |
-| Use the resolve script output for build/define/infra paths | Assume every neuron uses an `agent/` subfolder |
-| Read `go.mod` from the service you're editing | Substitute ids from another agent or templates |
-| Confirm `serviceID` matches `focus_neuron_id` before wiring | Guess the service id from folder names |
-| Follow discovery tier order above | Rely on ad-hoc metadata files instead of the script, runtime context, or MCP |
-| Ask the user if pairing is unclear | Guess repo layout or equate neuron id to a single folder name |
+| Run resolve script first | Declare `serviceID` inline in scheduler code |
+| Consolidate identity to one central package before wiring | Scatter `AppName` / neuron id across packages |
+| Use central `NeuronId` for queue and table prefix | Pass hyphenated id to `NewLauncher` (use `AppName`) |
+| Match `local.neuron` in infra to central `NeuronId` | Guess ids from folder names |
 
 User corrections override everything.

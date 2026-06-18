@@ -3,19 +3,21 @@ name: adk-add-scheduler
 description: >
   Use this skill when the user wants scheduled or recurring agent runs, A2A scheduler extension,
   cron jobs, webscheduler launcher, or Cloud Tasks delivery for the agent — even if they do not
-  say scheduler extension. Wires internal/scheduler, Spanner tables, gRPC interceptor, and
-  webscheduler.NewLauncher. Not for sync tools (add-tool), LRO (add-lro), AG-UI (add-agui), or
-  embedded runtime skills (add-agent-skills).
+  say scheduler extension. Wires scheduler service, Spanner tables, gRPC interceptor, and
+  webscheduler.NewLauncher with WithGRPCRegistrar. Not for sync tools (add-tool), LRO (add-lro),
+  AG-UI (add-agui), or embedded runtime skills (add-agent-skills).
 metadata:
   alis.context.version: "1"
   alis.context.requires: >-
     focus_neuron_id
-    workstations.build_repos workstations.define_repos
+    workstations.build_repos workstations.define_repos workstations.infra
 ---
 
 # Add A2A scheduler launcher
 
-Registers the **A2A scheduler extension** on the existing ADK `web.NewLauncher` stack. The scheduler uses Spanner for state and Cloud Tasks for delivery. Wiring requires an `internal/scheduler` package, a gRPC server with the scheduler interceptor, and the `webscheduler` sublauncher.
+Registers the **A2A scheduler extension** on the existing ADK `web.NewLauncher` stack. The scheduler uses Spanner for state and Cloud Tasks for delivery.
+
+Before creating any new package, search the build module for existing capabilities using the discovery signals documented below. Extend existing packages rather than creating parallel ones. Do not refactor the user's layout to match templates. Templates provide greenfield defaults for new projects only.
 
 ## Runtime Context
 
@@ -37,25 +39,25 @@ below and uses it as the `read_mask` on `GetContext` — the block carries **onl
 
 | Value | Context field | If absent (after script + block) |
 | ----- | ------------- | -------------------------------- |
-| Neuron / service id | `focus_neuron_id` | Scheduler queue name, Spanner table prefix, and `webscheduler.NewLauncher` scope |
-| Neuron build root | `workstations.build_repos` | Go module with `internal/scheduler` and entrypoint |
-| Neuron define tree | `workstations.define_repos` | Define package for optional `scheduler.proto` Spanner imports |
+| Neuron / service id | `focus_neuron_id` | Used to derive `NeuronId` |
+| Neuron build root | `workstations.build_repos` | Go module with scheduler and entrypoint |
+| Neuron define tree | `workstations.define_repos` | Define package for Spanner proto imports |
 
 ## Available scripts
 
-- **`scripts/resolve-alis-workspace.sh`** — Resolves Alis Build workspace context (organisation, product, neuron, paths) from the current working directory. Run with `--json` for structured output, `--help` for usage.
+- **`scripts/resolve-alis-workspace.sh`** — Resolves Alis Build workspace context from the current working directory. Run with `--json` for structured output.
 
-**Before any edits**, run the workspace resolver to identify the neuron, paths, and service id:
+**Before any edits**, run the workspace resolver:
 
 ```bash
 bash scripts/resolve-alis-workspace.sh --json
 ```
 
-Then read **`references/workspace-scheduler.md`** for path rules and tier 3+ discovery, including scheduler-specific path checks.
+Then read **`references/workspace-scheduler.md`** for path rules and central identity.
 
 ## When to use
 
-See the skill **description** (primary trigger). Internal scheduler package + gRPC interceptor + sublauncher inside `web.NewLauncher`; proto imports + define for Spanner tables.
+See the skill **description** (primary trigger). Standard install wires: central identity, scheduler service bootstrap, gRPC interceptor, `webscheduler.WithGRPCRegistrar`, proto imports, Terraform module, deployment args.
 
 ## When not to use
 
@@ -69,169 +71,153 @@ See the skill **description** (primary trigger). Internal scheduler package + gR
 
 - ADK agent entrypoint with `universal.NewLauncher(web.NewLauncher(...))` already in place.
 - A GCP project with Spanner and Cloud Tasks enabled.
-- Cloud Tasks queue `{service-id}-a2a-scheduler` created in the agent's region.
+- Cloud Tasks queue `{NeuronId}-a2a-scheduler` created in the agent's region.
 - Environment variables set on the deployment (see **Environment variables** below).
-- User can **install required dependencies** if `go.alis.build/a2a/extension/scheduler` and `go.alis.build/adk/launchers` are not already in `go.mod`.
 
-## Architecture
+## Capabilities
 
-```
-internal/scheduler/scheduler.go
-    InitScheduler(ctx) → schedulerservice.NewSchedulerService (Spanner + Cloud Tasks)
-    MustInitScheduler(ctx)
-    package-level Service variable
-        ↓
-main.go
-    scheduler.MustInitScheduler(ctx)
-    grpc.NewServer(grpc.UnaryInterceptor(schedulerservice.UnaryServerInterceptor()))
-    mux.HandleGRPC(grpcServer)
-        ↓
-    web.NewLauncher(
-        ...,
-        webscheduler.NewLauncher(adkAppName, scheduler.Service, webscheduler.WithGRPCRegistrar(grpcServer)),
-    )
-```
+This skill introduces three capabilities. For each: discover existing → extend or create → wire → verify contract.
 
-The `serviceID` in `internal/scheduler/scheduler.go` must match the infra service identifier. The Cloud Tasks queue name is `{serviceID}-a2a-scheduler`. The `TargetUrl` is `AGENT_SERVICE_URL + schedulerext.HandlerPath`.
+### Capability: Central identity
 
-## Phase A — Bootstrap scheduler (one-time)
+| | |
+|-|-|
+| **Contract** | Exactly one exported source for `AppName` (periods) and `NeuronId` (hyphens). All other packages import from this source. |
+| **Discovery signals** | `AppName`, `NeuronId`, `llmagent.Config.Name`, existing constants package |
+| **Wire points** | Imported by scheduler bootstrap, `main.go` launcher calls, `-app_name` CLI flag |
+| **Greenfield default** | `internal/info/info.go` — see `references/templates/central-identity.go.example` |
 
-Read and follow **`references/workspace-scheduler.md`** for path discovery.
+**Derivation:** `focus_neuron_id` (hyphenated) = `NeuronId`. Replace `-` with `.` = `AppName`.
 
-| # | Action | Template |
-|---|--------|----------|
-| 1 | Create `internal/scheduler/scheduler.go` with `InitScheduler`, `MustInitScheduler`, and package-level `Service` | `references/templates/scheduler.go.example` |
-| 2 | Set `serviceID` const to `focus_neuron_id` from the resolve script (or runtime context) | `references/workspace-scheduler.md` |
-| 3 | Wire entrypoint: import scheduler package, call `MustInitScheduler`, create gRPC server with interceptor, register with mux, add `webscheduler` sublauncher | `references/templates/main-scheduler-wiring.go.example` |
-| 4 | Add proto imports for Spanner tables if not already present (see **Proto imports for Spanner tables** below); ask user to run define |
-| 5 | Ensure infra has Spanner table + Cloud Tasks queue + env vars on deployment | `references/infra-scheduler.md` |
-| 6 | Add `scheduler` and `-app_name=<adkAppName>` to the launcher CLI args in Dockerfile and Cloud Run / deployment config | See **Deployment: launcher CLI args** below |
-| 7 | Ask user to install/upgrade dependencies if needed (`go.alis.build/a2a/extension/scheduler`, `go.alis.build/adk/launchers`, `go.alis.build/mux`, `go.alis.build/utils`, `go.alis.build/alog`) |
-| 8 | `go build ./...` and run the agent locally to verify scheduler routes are served |
+### Capability: Scheduler service bootstrap
 
-Replace all `REPLACE_WITH_*` placeholders with your module and project values.
+| | |
+|-|-|
+| **Contract** | Package exports `var Service *schedulerservice.SchedulerService` and `func MustInitScheduler(ctx)`. Uses central `NeuronId` for Cloud Tasks queue (`{NeuronId}-a2a-scheduler`) and Spanner table prefix. Reads `ALIS_MANAGED_SPANNER_*`, `ALIS_OS_PROJECT`, `ALIS_REGION`, `AGENT_SERVICE_URL` from env. |
+| **Discovery signals** | `NewSchedulerService`, `schedulerservice`, `MustInitScheduler`, `a2a/extension/scheduler`, existing scheduler bootstrap |
+| **Wire points** | Called in `main.go` before launcher; `Service` passed to `webscheduler.NewLauncher` |
+| **Greenfield default** | `internal/scheduler/scheduler.go` — see `references/templates/scheduler-service-bootstrap.go.example` |
 
-## Service id and identifiers
+### Capability: Scheduler launcher wiring
 
-The `serviceID` const in `internal/scheduler/scheduler.go` is the core identifier that drives several derived values:
+| | |
+|-|-|
+| **Contract** | `scheduler.MustInitScheduler(ctx)` called before launcher. `grpc.NewServer(grpc.UnaryInterceptor(schedulerservice.UnaryServerInterceptor()))` + `mux.HandleGRPC(grpcServer)`. `webscheduler.NewLauncher(appName, scheduler.Service, webscheduler.WithGRPCRegistrar(grpcServer))` registered inside `web.NewLauncher(...)`. |
+| **Discovery signals** | `webscheduler.NewLauncher`, `WithGRPCRegistrar`, `UnaryServerInterceptor`, existing scheduler sublauncher |
+| **Wire points** | Agent entrypoint, inside the `web.NewLauncher(...)` call |
+| **Greenfield default** | See `references/templates/scheduler-launcher-wiring.go.example` |
+
+## Steps
+
+| # | Action |
+|---|--------|
+| 0 | **Discover** — search the build module for existing central identity, scheduler service, and scheduler wiring using discovery signals above |
+| 1 | **Central identity** — ensure one source for `AppName` + `NeuronId` exists (extend existing or create from template) |
+| 2 | **Scheduler service** — ensure capability exists (extend existing or create from template); must use central `NeuronId` |
+| 3 | **Host gRPC** — ensure `grpc.Server` + `schedulerservice.UnaryServerInterceptor()` + `mux.HandleGRPC(grpcServer)` exists (shared with add-agui when both apply) |
+| 4 | **Scheduler launcher** — wire `webscheduler.NewLauncher(appName, service, WithGRPCRegistrar(...))` inside `web.NewLauncher(...)` |
+| 5 | **Proto imports** — add orphan imports to define proto (common protobundle); ask user to **run define** |
+| 6 | **Infra** — ensure `alis.a2a.extension.scheduler.v1` Terraform module + Cloud Tasks queue exist — see **`references/infra-scheduler.md`** |
+| 7 | **Deployment** — add env vars and `scheduler` + `-app_name=<AppName>` to CLI args — Dockerfile CMD **must match** Cloud Run args |
+| 8 | **Dependencies** — ask user to install/upgrade if needed |
+| 9 | **Verify** — `go build ./...` |
+
+## Central identity
+
+See the **Central identity** capability above. Scheduler uses `info.NeuronId` for Cloud Tasks queue and Spanner prefix; `info.AppName` for `webscheduler.NewLauncher` and `-app_name` CLI flag.
 
 | Derived value | Pattern | Example |
 |---------------|---------|---------|
-| Cloud Tasks queue | `{serviceID}-a2a-scheduler` | `my-agent-v1-a2a-scheduler` |
-| Spanner table prefix | `{project}_{serviceID}` (hyphens → underscores) | `my_project_my_agent_v1` |
-| Service account | `alis-build@{project}.iam.gserviceaccount.com` | — |
-| Target URL | `AGENT_SERVICE_URL + schedulerext.HandlerPath` | — |
+| Cloud Tasks queue | `{NeuronId}-a2a-scheduler` | `my-neuron-v1-a2a-scheduler` |
+| Spanner table prefix | `{project}_{NeuronId}` (hyphens → underscores) | `my_project_my_neuron_v1` |
+| Launcher + CLI | `AppName` | `my.neuron.v1` |
 
-**Finding the service id:** Use `focus_neuron_id` from `bash scripts/resolve-alis-workspace.sh --json`. If LRO or AG-UI is already wired, reuse the same id only when it matches `focus_neuron_id`. Read **`references/workspace-scheduler.md`** for the full discovery tier order.
+`local.neuron` in infra must match central `NeuronId`.
 
 ## Proto imports for Spanner tables
 
-The scheduler stores cron state in Spanner tables provisioned through define. Add the following imports to **any one** proto in the agent's define package (typically `tools.proto`), even if nothing in the file references them:
+Protos ship in the **common protobundle** — import only in `tools.proto`:
 
 ```protobuf
 import "alis/a2a/extension/scheduler/v1/scheduler.proto";
 import "alis/agui/history/v1/history.proto";
 ```
 
-Add **both** imports whenever scheduler Spanner tables are required — even if the agent does not use AG-UI threads/history yet. The imports are for table provisioning, not for RPC definitions in your service.
-
-Ask the user to **run define** on the package (or neuron) after editing the proto. Add **both** imports whenever either scheduler or thread/history Spanner tables are needed — the same rule applies for **add-agui**.
+Add **both** imports even when only scheduler is needed. Ask the user to **run define**. Also wire Terraform per **`references/infra-scheduler.md`**.
 
 ## Environment variables
-
-The scheduler reads configuration from the process environment. These must be set on the deployment target (Agent Engine `deployment_spec`, Cloud Run env, or local `.env`):
 
 | Variable | Purpose |
 |----------|---------|
 | `ALIS_MANAGED_SPANNER_PROJECT` | Spanner host project |
-| `ALIS_MANAGED_SPANNER_INSTANCE` | Spanner instance name |
-| `ALIS_MANAGED_SPANNER_DB` | Spanner database name |
+| `ALIS_MANAGED_SPANNER_INSTANCE` | Spanner instance |
+| `ALIS_MANAGED_SPANNER_DB` | Spanner database |
 | `ALIS_OS_PROJECT` | GCP project for Cloud Tasks + service account |
 | `ALIS_REGION` | Region for Cloud Tasks delivery |
 | `AGENT_SERVICE_URL` | Base URL for Cloud Tasks callback delivery |
 
-The template uses `env.MustGet` from `go.alis.build/utils/env` which panics on missing values. For projects that prefer a different env-reading approach, adapt `InitScheduler` accordingly — the important thing is that all six values are available at startup.
-
-See **`references/infra-scheduler.md`** for deployment configuration details.
+See **`references/infra-scheduler.md`** for deployment configuration.
 
 ## Deployment: launcher CLI args
 
-The ADK `universal.NewLauncher` / `web.NewLauncher` binary uses **positional CLI args** to activate each sublauncher at runtime. Registering `webscheduler.NewLauncher` in Go is not enough — you must also pass `scheduler` and `-app_name=<adkAppName>` in the command args when running the binary.
+Pass `scheduler` and `-app_name=<AppName>` in **both** Dockerfile CMD and Cloud Run args. **They must match.**
 
-The `scheduler` arg activates the scheduler sublauncher. The `-app_name` flag tells the scheduler which ADK app name to use (must match `llmagent.Config.Name` / the first arg to `webscheduler.NewLauncher`).
-
-Only include sublauncher args for sublaunchers the agent actually uses. The scheduler sublauncher is independent — it has no dependencies on other sublaunchers (`webui`, `api`, `lro`, `agui`, etc.).
+`-app_name` must match central `AppName` / `llmagent.Config.Name` / first arg to `webscheduler.NewLauncher`.
 
 ### Dockerfile
 
 ```dockerfile
-CMD ["/app/main", "web", "-port", "8080", "scheduler", "-app_name=REPLACE_WITH_ADK_APP_NAME"]
+CMD ["/app/main", "web", "-port", "8080", "scheduler", "-app_name=my.neuron.v1"]
 ```
 
 ### Cloud Run (Terraform)
 
+Template: **`references/templates/infra/cloudrun-args.tf.snippet.example`**
+
 ```hcl
-containers {
-  command = ["/app/main"]
-  args    = ["web", "-port", "8080", "scheduler", "-app_name=REPLACE_WITH_ADK_APP_NAME"]
-}
+args = ["web", "-port", "8080", "scheduler", "-app_name=my.neuron.v1"]
 ```
 
-### Minimal vs full example
-
-The above shows only what the scheduler requires. A typical agent with multiple sublaunchers might look like:
+When **add-agui** is also wired:
 
 ```
-args = ["web", "-port", "8080", "webui", "-api_server_address=/api", "api", "lro", "scheduler", "-app_name=REPLACE_WITH_ADK_APP_NAME"]
-```
-
-Add other sublaunchers (`webui`, `api`, `lro`, `agui`, etc.) only if the agent uses them — they are not scheduler prerequisites. If other sublaunchers are already present, append `scheduler` and `-app_name=...` to the existing args list.
-
-### Local development
-
-```bash
-go run . web -port 8080 scheduler -app_name=REPLACE_WITH_ADK_APP_NAME
+args = ["web", "-port", "8080", "agui", "scheduler", "-app_name=my.neuron.v1"]
 ```
 
 ## Verification
 
-- [ ] `internal/scheduler/scheduler.go` exists with `InitScheduler`, `MustInitScheduler`, `Service`
-- [ ] `serviceID` matches `focus_neuron_id` from resolve script (or runtime context)
-- [ ] `scheduler.MustInitScheduler(ctx)` called in entrypoint before launcher
-- [ ] gRPC server created with `schedulerservice.UnaryServerInterceptor()`
-- [ ] gRPC server registered with `mux.HandleGRPC(grpcServer)`
-- [ ] `webscheduler.NewLauncher` inside `web.NewLauncher(...)` with `WithGRPCRegistrar(grpcServer)`
-- [ ] Cloud Tasks queue `{serviceID}-a2a-scheduler` exists in the agent's region
-- [ ] Proto imports for scheduler (and history) Spanner tables present; user ran define
-- [ ] Scheduler env vars set on deployment target
-- [ ] Dockerfile CMD includes `scheduler` and `-app_name=<adkAppName>`
-- [ ] Cloud Run / deployment args include `scheduler` and `-app_name=<adkAppName>`
+- [ ] One source for `AppName` + `NeuronId` — no duplicates in scheduler or entrypoint
+- [ ] Scheduler service exists; uses central `NeuronId` for queue and table prefix; exports `Service` + `MustInitScheduler`
+- [ ] `scheduler.MustInitScheduler(ctx)` called before launcher
+- [ ] gRPC server with `schedulerservice.UnaryServerInterceptor()` + `mux.HandleGRPC`
+- [ ] `webscheduler.NewLauncher(appName, ..., WithGRPCRegistrar(grpcServer))` — **WithGRPCRegistrar required**
+- [ ] Cloud Tasks queue `{NeuronId}-a2a-scheduler` exists
+- [ ] Proto imports present; user ran define
+- [ ] Scheduler env vars on deployment
+- [ ] Dockerfile CMD and Cloud Run args include `scheduler` + `-app_name=<AppName>` and **match**
 - [ ] `go build ./...` passes
-- [ ] Agent starts without scheduler initialization errors
 
 ## Pitfalls
 
-- Wrong `serviceID` — use `focus_neuron_id` from the resolve script, not infra Terraform locals or templates from other agents.
-- Adding `webscheduler` outside `web.NewLauncher` — it must be a **sibling** sublauncher with `webui`, `webapi`, `weblro`, etc.
-- Forgetting `mux.HandleGRPC(grpcServer)` — the gRPC server won't receive traffic without host mux registration.
-- Missing `schedulerservice.UnaryServerInterceptor()` on the gRPC server — scheduler RPCs won't be intercepted.
-- Cloud Tasks queue name mismatch — must be exactly `{serviceID}-a2a-scheduler`.
-- `Service == nil` at runtime — `MustInitScheduler` not called or env vars missing.
-- Missing scheduler env vars on deployment — `env.MustGet` panics at runtime.
-- Running `go get` before confirming whether dependencies are already required — ask user to install dependencies when unsure.
-- Forgetting to pass `webscheduler.WithGRPCRegistrar(grpcServer)` — scheduler gRPC service won't be registered.
-- Missing `scheduler` in Dockerfile CMD or Cloud Run args — the sublauncher is registered in Go but won't activate without the CLI arg.
-- Missing `-app_name` flag in deployment args — the scheduler needs the ADK app name to function.
-- Skipping proto imports for Spanner tables — scheduler storage will not be provisioned; add both `scheduler.proto` and `history.proto` imports and run define.
+- Creating new packages without discovering existing ones — always search first
+- Refactoring the user's layout to match skill templates without being asked
+- Declaring `serviceID` in scheduler code instead of importing from central identity
+- Passing hyphenated `focus_neuron_id` to `NewLauncher` — use `AppName`
+- Forgetting `WithGRPCRegistrar` — scheduler gRPC won't register
+- Dockerfile CMD differs from Cloud Run args
+- Cloud Tasks queue name mismatch — must be `{NeuronId}-a2a-scheduler`
+- `local.neuron` in infra does not match central `NeuronId`
+- Missing `-app_name` in deployment args
+- Skipping proto imports or Terraform module
 
-## Templates index
+## References & templates
 
 | File | Purpose |
 |------|---------|
-| `references/workspace-scheduler.md` | Path discovery + service id alignment |
+| `references/templates/central-identity.go.example` | Central `AppName` + `NeuronId` |
+| `references/templates/scheduler-service-bootstrap.go.example` | Scheduler service with central `NeuronId` |
+| `references/templates/scheduler-launcher-wiring.go.example` | Entrypoint + shared gRPC |
+| `references/templates/infra/scheduler-module.tf.example` | Terraform module |
+| `references/templates/infra/cloudrun-args.tf.snippet.example` | Cloud Run args + `-app_name` |
+| `references/workspace-scheduler.md` | Path discovery + workspace rules |
 | `references/infra-scheduler.md` | Spanner + Cloud Tasks + deployment infra |
-| `references/templates/scheduler.go.example` | `internal/scheduler/scheduler.go` |
-| `references/templates/main-scheduler-wiring.go.example` | Entrypoint scheduler + webscheduler wiring |
-| `references/templates/infra/scheduler-module.tf.example` | Full Terraform module (Spanner table + Cloud Tasks queue + IAM) |
-| `references/templates/infra/main.tf.snippet.example` | Module block for `infra/main.tf` |
-| `references/templates/infra/cloudrun-args.tf.snippet.example` | Cloud Run container args with `scheduler` + `-app_name` |

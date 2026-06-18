@@ -1,0 +1,16 @@
+// Capability: Central identity
+// Contract: Exactly one exported source for AppName (periods) and NeuronId (hyphens).
+//           All other packages import from this source. No duplicates allowed.
+// Greenfield default path: internal/info/info.go
+//
+// NeuronId: hyphenated platform id (focus_neuron_id from resolve script).
+// AppName:  same id with hyphens replaced by periods (used by llmagent, launchers, -app_name).
+//
+// Example: neuron path agents/users/v1 → NeuronId "agents-users-v1" → AppName "agents.users.v1"
+
+package info
+
+const (
+	AppName  = "my.neuron.v1"
+	NeuronId = "my-neuron-v1"
+)

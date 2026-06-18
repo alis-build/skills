@@ -1,0 +1,41 @@
+// Capability: Scheduler launcher wiring
+// Contract: scheduler.MustInitScheduler(ctx) called before launcher.
+//           grpc.NewServer with schedulerservice.UnaryServerInterceptor + mux.HandleGRPC.
+//           webscheduler.NewLauncher(appName, service, WithGRPCRegistrar(grpcServer)) in web.NewLauncher.
+// Greenfield default path: main.go (or agent entrypoint)
+//
+// REQUIRED: central identity (AppName), scheduler service (Service + MustInitScheduler),
+// WithGRPCRegistrar on host gRPC server.
+// When add-agui is also wired, share the same grpcServer.
+
+import (
+	"REPLACE_WITH_YOUR_MODULE/internal/info"
+	"REPLACE_WITH_YOUR_MODULE/internal/scheduler"
+	schedulerservice "go.alis.build/a2a/extension/scheduler/service"
+	webscheduler "go.alis.build/adk/launchers/scheduler"
+	launchersweb "go.alis.build/adk/launchers/web"
+	"go.alis.build/mux"
+	"google.golang.org/adk/cmd/launcher/universal"
+	"google.golang.org/grpc"
+)
+
+func main() {
+	ctx := context.Background()
+	// ... agent config — llmagent.Config.Name must match AppName from central identity ...
+
+	scheduler.MustInitScheduler(ctx)
+
+	grpcServer := grpc.NewServer(grpc.UnaryInterceptor(schedulerservice.UnaryServerInterceptor()))
+	mux.HandleGRPC(grpcServer)
+
+	l := universal.NewLauncher(launchersweb.NewLauncher(
+		webscheduler.NewLauncher(info.AppName, scheduler.Service,
+			webscheduler.WithGRPCRegistrar(grpcServer),
+		),
+	))
+	// l.Execute(ctx, launcherConfig, os.Args[1:])
+}
+
+// Deployment — Dockerfile CMD must match Cloud Run args:
+//   CMD ["/app/main", "web", "-port", "8080", "scheduler", "-app_name=my.neuron.v1"]
+// With agui: args = ["web", "-port", "8080", "agui", "scheduler", "-app_name=my.neuron.v1"]

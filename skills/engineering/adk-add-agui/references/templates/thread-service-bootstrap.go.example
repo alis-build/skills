@@ -1,0 +1,48 @@
+// Capability: Thread history service
+// Contract: Export var Service *historyservice.ThreadService; construct with central NeuronId
+//           for Spanner table prefix; read ALIS_MANAGED_SPANNER_* and ALIS_OS_PROJECT from env.
+// Greenfield default path: internal/agui/history/history.go
+
+package history
+
+import (
+	"context"
+	"fmt"
+	"strings"
+
+	"REPLACE_WITH_YOUR_MODULE/internal/info"
+	historyservice "go.alis.build/agui/history/service"
+	"go.alis.build/alog"
+	"go.alis.build/utils/env"
+	"google.golang.org/grpc"
+)
+
+var Service *historyservice.ThreadService
+
+func init() {
+	ctx := context.Background()
+
+	spannerProject := env.MustGet("ALIS_MANAGED_SPANNER_PROJECT")
+	spannerInstance := env.MustGet("ALIS_MANAGED_SPANNER_INSTANCE")
+	spannerDatabase := env.MustGet("ALIS_MANAGED_SPANNER_DB")
+
+	tablePrefix := strings.ReplaceAll(env.MustGet("ALIS_OS_PROJECT"), "-", "_") + "_" + strings.ReplaceAll(info.NeuronId, "-", "_")
+
+	var err error
+	Service, err = historyservice.NewThreadService(ctx, &historyservice.SpannerStoreConfig{
+		Project:               spannerProject,
+		Instance:              spannerInstance,
+		Database:              spannerDatabase,
+		ThreadsTable:          fmt.Sprintf("%s_Threads", tablePrefix),
+		UserThreadStatesTable: fmt.Sprintf("%s_UserThreadStates", tablePrefix),
+	})
+	if err != nil {
+		alog.Fatalf(ctx, "instantiating agui/history ThreadService: %v", err)
+	}
+}
+
+// RegisterGRPC registers ThreadService on the host gRPC server.
+// Prefer webagui.WithGRPCRegistrar(grpcServer) in main.go — do not call both for the same server.
+func RegisterGRPC(registrar grpc.ServiceRegistrar) {
+	Service.Register(registrar)
+}

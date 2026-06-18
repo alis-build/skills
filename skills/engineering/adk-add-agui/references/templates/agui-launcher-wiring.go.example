@@ -1,0 +1,43 @@
+// Capability: AG-UI launcher wiring
+// Contract: webagui.NewLauncher(appName, WithThreadService(...), WithGRPCRegistrar(grpcServer))
+//           registered inside web.NewLauncher(...). Host grpc.Server registered with mux.HandleGRPC.
+// Greenfield default path: main.go (or agent entrypoint)
+//
+// REQUIRED: central identity (AppName), thread history service (Service),
+// WithThreadService + WithGRPCRegistrar on a shared host gRPC server.
+// Other sublaunchers (webui, api, lro, scheduler, agentengine) are independent.
+
+import (
+	"REPLACE_WITH_YOUR_MODULE/internal/agui/history"
+	"REPLACE_WITH_YOUR_MODULE/internal/info"
+	webagui "go.alis.build/adk/launchers/agui"
+	web "go.alis.build/adk/launchers/web"
+	"go.alis.build/mux"
+	"google.golang.org/adk/cmd/launcher/universal"
+	"google.golang.org/grpc"
+)
+
+func main() {
+	ctx := context.Background()
+	// ... agent config — llmagent.Config.Name must match AppName from central identity ...
+
+	grpcServer := grpc.NewServer()
+	mux.HandleGRPC(grpcServer)
+
+	l := universal.NewLauncher(web.NewLauncher(
+		webagui.NewLauncher(info.AppName,
+			webagui.WithThreadService(history.Service),
+			webagui.WithGRPCRegistrar(grpcServer),
+			// webagui.WithCORS(webagui.CORSConfig{...}), // add-on: cross-origin browser client only
+		),
+	))
+	// l.Execute(ctx, launcherConfig, os.Args[1:])
+}
+
+// Identity (from central identity capability):
+//   NeuronId = "my-neuron-v1"  — focus_neuron_id (hyphenated); Spanner/infra prefix
+//   AppName  = "my.neuron.v1"  — NeuronId with - → .; launchers + llmagent.Config.Name
+//
+// Deployment — Dockerfile CMD must match Cloud Run args:
+//   CMD ["/app/main", "web", "-port", "8080", "agui"]
+// With scheduler: append "scheduler", "-app_name=my.neuron.v1" (see add-scheduler)

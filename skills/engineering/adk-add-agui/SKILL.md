@@ -2,21 +2,21 @@
 name: adk-add-agui
 description: >
   Use this skill when the user wants to expose an ADK agent to a custom frontend, integrate
-  CopilotKit or other AG-UI clients, wire the AG-UI SSE endpoint, add thread history or threads
-  (WithThreadService), or put CORS/auth at the agent edge — even if they do not say ag-ui or
-  webagui. Wires webagui.NewLauncher into the web launcher stack. Not for sync tools (add-tool),
-  LRO (add-lro), embedded runtime skills (add-agent-skills), or the bundled Vue console
-  (add-console).
+  CopilotKit or other AG-UI clients, wire the AG-UI SSE endpoints, add thread history, add AG-UI capabilities and more. Wires
+  webagui.NewLauncher with WithThreadService and WithGRPCRegistrar into the web launcher stack.
+  For browser UI use add-console after AG-UI wiring.
 metadata:
   alis.context.version: "1"
   alis.context.requires: >-
     focus_neuron_id
-    workstations.build_repos workstations.define_repos
+    workstations.build_repos workstations.define_repos workstations.infra
 ---
 
 # Add AG-UI launcher
 
-Registers the **agui** sublauncher on the existing ADK `web.NewLauncher` stack so clients can use the AG-UI protocol (SSE). One import and one extra sublauncher argument in `main.go`.
+Registers the **agui** sublauncher on the existing ADK `web.NewLauncher` stack with Spanner-backed thread history (`WithThreadService` + `WithGRPCRegistrar`).
+
+Before creating any new package, search the build module for existing capabilities using the discovery signals documented below. Extend existing packages rather than creating parallel ones. Do not refactor the user's layout to match templates. Templates provide greenfield defaults for new projects only.
 
 ## Runtime Context
 
@@ -36,13 +36,12 @@ below and uses it as the `read_mask` on `GetContext` — the block carries **onl
 
 ### Context fields (`alis.context.requires`)
 
-Path-valued fields live on `workstations`; use the entry for the current workstation.
-
-| Value | Context field | If absent (after script + block) |
-| ----- | ------------- | -------------------------------- |
-| Neuron / service id | `focus_neuron_id` | AG-UI service id and neuron scope — obtain via resolve script or ask |
-| Neuron build root | `workstations.build_repos` | Parent of the neuron's `infra/` where `main.go` lives |
-| Neuron define tree | `workstations.define_repos` | Define package for optional Spanner proto imports (`history.proto`, `scheduler.proto`) |
+| Value               | Context field               | If absent (after script + block)                               |
+| ------------------- | --------------------------- | -------------------------------------------------------------- |
+| Neuron / service id | `focus_neuron_id`           | Discover via resolve script or ask — used to derive `NeuronId` |
+| Neuron build root   | `workstations.build_repos`  | Parent of the neuron's `infra/` where `main.go` lives          |
+| Neuron define tree  | `workstations.define_repos` | Define package for Spanner proto imports                       |
+| Infra directory     | `workstations.infra`        | Terraform for `alis.agui.history.v1` module                    |
 
 ## Available scripts
 
@@ -54,19 +53,19 @@ Path-valued fields live on `workstations`; use the entry for the current worksta
 bash scripts/resolve-alis-workspace.sh --json
 ```
 
-Then read **`references/alis-workspace.md`** for path rules and tier 3+ discovery. Use `focus_neuron_id` from the script or runtime context as the service id and `workstations.build_repos` for the agent module.
+Then read **`references/alis-workspace.md`** for path rules and tier 3+ discovery.
 
 ## Exposing an agent to users
 
 When the goal is "let users actually use this agent," there are three interface surfaces on the `web` launcher stack:
 
 - **Built-in `webui` + `api`** — the bundled ADK chat UI. Zero frontend code, but you don't control the UX. Best for internal/demo use.
-- **`agui` (this skill)** — exposes the agent over the AG-UI protocol so a **custom frontend you own** (CopilotKit, or any AG-UI client) can stream messages, tool calls, and state. Choose this for a product-grade, branded, or embedded interface you build separately.
-- **add-console** (`console` sublauncher) — bundled Vue web UI served from the agent (chat shell, branding, `/auth/me`). Uses AG-UI under the hood; choose when the user wants a browser UI without building a separate frontend project.
+- **`agui` (this skill)** — exposes the agent over the AG-UI protocol so a **custom frontend you own** (CopilotKit, `@ag-ui/adk`, or any AG-UI client) can stream messages, tool calls, and state.
+- **add-console** — browser chat UI via a console BFF or bundled SPA. Uses AG-UI under the hood; apply **add-console** when the user wants a browser UI (see **Browser UI** below).
 
-**Authentication.** AG-UI is the edge your frontend connects to, so it's where you *enforce* auth — `webagui.WithCORS` (which origins may connect) and `webagui.WithInterceptor` (inspect the request, read identity). It does **not** implement login or mint identity: on Alis Build the platform gateway injects the caller identity (Bearer JWT) ahead of the service, and your interceptor consumes it. For the login/identity mechanism itself, follow the product's auth pattern — this skill only wires the layer where auth is applied.
+**Authentication.** AG-UI routes use `go.alis.build/mux` auth middleware — `IDENTITY_SERVICE_URL` must be set on the agent deployment. Optional `webagui.WithCORS` and `webagui.WithInterceptor` add cross-origin or per-request hooks. See **`references/request-flow.md`**.
 
-> A separate frontend (e.g. CopilotKit) or the bundled SPA (**add-console**) are **not** part of this skill — this skill only wires the AG-UI endpoint. If the user also needs or wants a UI, frontend, console, or chat UI in the browser, **ask** whether they want to use **add-console** after AG-UI wiring is in place; wait for confirmation before applying that skill.
+> This skill wires the **agent-side** AG-UI endpoint. For browser UI, BFF reverse-proxy, or gRPC-Web frontend clients, cross-link **add-console** after AG-UI wiring is in place.
 
 ## Orientation: how a request flows
 
@@ -75,121 +74,139 @@ When a user wants to understand how AG-UI works or where auth happens — not ju
 - `go.alis.build/mux` (`auth.go`) — authentication middleware that establishes identity.
 - `go.alis.build/adk/launchers/agui` — the sublauncher that runs the agent and streams AG-UI events.
 
-Open the source in the user's module cache at the version their `go.mod` pins (`go list -m go.alis.build/adk/launchers go.alis.build/mux`, then read under `$(go env GOMODCACHE)`). Follow the trace in **`references/request-flow.md`**, which names files and functions (not line numbers, which drift between versions).
+Open the source in the user's module cache at the version their `go.mod` pins (`go list -m go.alis.build/adk/launchers go.alis.build/mux`, then read under `$(go env GOMODCACHE)`). Follow the trace in **`references/request-flow.md`**.
 
 ## When to use
 
-See the skill **description** (primary trigger). One import + sublauncher inside `web.NewLauncher`; proto imports + define for Spanner tables when `WithThreadService` is used.
+See the skill **description** (primary trigger). Standard install wires: central identity, thread history service, `WithThreadService` + `WithGRPCRegistrar`, define proto imports, Terraform history module, deployment env vars.
 
 ### Natural-language → option mapping
 
-Users rarely name `With*` options. Map their intent using **`references/launcher-options.md`** (full catalog). Common mappings:
+Users rarely name `With*` options. Map their intent using **`references/launcher-options.md`** (full catalog). `WithThreadService` and `WithGRPCRegistrar` are **always** wired in the standard install.
 
-| User intent | Option |
-|-------------|--------|
-| Thread history, threads, conversation history, thread list/metadata | `WithThreadService` |
-| Browser frontend on another origin, CORS | `WithCORS` |
-| Per-request auth/authz at the AG-UI edge | `WithInterceptor` |
-| CopilotKit predictive / co-agent state | `WithPredictState`, `WithAgentStateEndpoint` |
-| Advertise tools, HITL, streaming to clients | `WithCapabilities` |
-
-**Thread history** = `WithThreadService` + `internal/agui/history` Spanner service + proto imports + define. Session messages (`GET /threads/{id}/messages`) work without it; thread **metadata** (list, pin, unread) does not.
+| User intent                                 | Option                                                                    |
+| ------------------------------------------- | ------------------------------------------------------------------------- |
+| Browser frontend on another origin, CORS    | `WithCORS` (add-on — not required when a BFF/console proxies same-origin) |
+| Per-request auth/authz at the AG-UI edge    | `WithInterceptor`                                                         |
+| CopilotKit predictive / co-agent state      | `WithPredictState`, `WithAgentStateEndpoint`                              |
+| Advertise tools, HITL, streaming to clients | `WithCapabilities`                                                        |
 
 ## When not to use
 
-| Need | Use instead |
-|------|-------------|
-| Sync / LRO tools, protos | **add-tool**, **add-lro** |
-| Bundled Vue web UI (console launcher, branding, chat shell) | **add-console** (requires AG-UI; also **add-scheduler**) |
-| Custom auth/history/A2UI interceptors (full stack) | Follow product-specific patterns beyond this minimal wiring |
+| Need                                          | Use instead                                              |
+| --------------------------------------------- | -------------------------------------------------------- |
+| Sync / LRO tools, protos                      | **add-tool**, **add-lro**                                |
+| Bundled Vue web UI, console BFF, browser chat | **add-console** (requires AG-UI; also **add-scheduler**) |
+| Scheduled/recurring runs only                 | **add-scheduler**                                        |
 
 ## Prerequisites
 
 - ADK agent entrypoint with `universal.NewLauncher(web.NewLauncher(...))` already in place.
-- User can **install required dependencies** if `go.alis.build/adk/launchers` is not already in `go.mod` (often present with LRO or other Alis launchers).
+- User can **install required dependencies** if not already in `go.mod`: `go.alis.build/adk/launchers`, `go.alis.build/agui/history`, `go.alis.build/mux`.
+
+## Capabilities
+
+This skill introduces three capabilities. For each: discover existing → extend or create → wire → verify contract.
+
+### Capability: Central identity
+
+|                        |                                                                                                                                                                     |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Contract**           | Exactly one exported source for `AppName` (periods, e.g. `my.neuron.v1`) and `NeuronId` (hyphens, e.g. `my-neuron-v1`). All other packages import from this source. |
+| **Discovery signals**  | `AppName`, `NeuronId`, `llmagent.Config.Name`, existing constants package                                                                                           |
+| **Wire points**        | Imported by thread history bootstrap, scheduler, `main.go` launcher calls                                                                                           |
+| **Greenfield default** | `internal/info/info.go` — see `references/templates/central-identity.go.example`                                                                                    |
+
+**Derivation:** `focus_neuron_id` (hyphenated) = `NeuronId`. Replace `-` with `.` = `AppName`.
+
+**Action:** If a central source already exists, use it. If identity is scattered across packages, consolidate only with user permission. If nothing exists, create from template.
+
+### Capability: Thread history service
+
+|                        |                                                                                                                                                                                                                                                                                           |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Contract**           | Package exposes `var Service *historyservice.ThreadService`; constructs via `historyservice.NewThreadService` using central `NeuronId` for Spanner table prefix; env vars: `ALIS_MANAGED_SPANNER_PROJECT`, `ALIS_MANAGED_SPANNER_INSTANCE`, `ALIS_MANAGED_SPANNER_DB`, `ALIS_OS_PROJECT`. |
+| **Discovery signals**  | `NewThreadService`, `historyservice`, `agui/history`, `ThreadService`, existing Spanner thread bootstrap                                                                                                                                                                                  |
+| **Wire points**        | `webagui.WithThreadService(...)` in the launcher stack                                                                                                                                                                                                                                    |
+| **Greenfield default** | `internal/agui/history/history.go` — see `references/templates/thread-service-bootstrap.go.example`                                                                                                                                                                                       |
+
+### Capability: AG-UI launcher wiring
+
+|                        |                                                                                                                                                                                                                 |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Contract**           | `webagui.NewLauncher(appName, webagui.WithThreadService(historyService), webagui.WithGRPCRegistrar(grpcServer))` registered inside `web.NewLauncher(...)`. Host `grpc.Server` registered with `mux.HandleGRPC`. |
+| **Discovery signals**  | `webagui.NewLauncher`, `WithThreadService`, `WithGRPCRegistrar`, existing AG-UI sublauncher                                                                                                                     |
+| **Wire points**        | Agent entrypoint, inside the `web.NewLauncher(...)` call                                                                                                                                                        |
+| **Greenfield default** | See `references/templates/agui-launcher-wiring.go.example`                                                                                                                                                      |
 
 ## Steps
 
-| # | Action |
-|---|--------|
-| 1 | Add import: `webagui "go.alis.build/adk/launchers/agui"` |
-| 2 | Set service id from `focus_neuron_id` (resolve script or runtime context). Reuse `lroServiceID` only when it already matches that id |
-| 3 | Append sublauncher inside `web.NewLauncher(...)`: `webagui.NewLauncher("<app-name>", webagui.WithCORS(webagui.CORSConfig{}))` — add other options from **Launcher options** when the user needs them |
-| 4 | When user wants thread history / threads: add `webagui.WithThreadService(...)`, usually `webagui.WithGRPCRegistrar(grpcServer)`; scaffold `internal/agui/history` (see **Thread history (WithThreadService)**); add proto imports and ask user to run define |
-| 5 | Add `agui` to the launcher CLI args in Dockerfile and Cloud Run / deployment config (see **Deployment: launcher CLI args** below) |
-| 6 | Ask user to install/upgrade `go.alis.build/adk/launchers` if needed |
-| 7 | `go build ./...` and run the agent locally to verify the AG-UI route is served |
-| 8 | If the user needs or wants a browser UI (frontend, console, chat UI) and does not already have a separate AG-UI client, **ask** whether they want **add-console** for the bundled Vue web UI — do not auto-apply; wait for confirmation |
-| 9 | Offer to orient the user in how a request flows (auth → handler → SSE) using `references/request-flow.md`. Recommended when the user is new to AG-UI or asked about auth / exposing to users; skip if they only wanted the wiring |
+| #   | Action                                                                                                                                                                                                   |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0   | **Discover** — search the build module for existing central identity, thread history service, and AG-UI wiring using discovery signals above                                                             |
+| 1   | **Central identity** — ensure one source for `AppName` + `NeuronId` exists (extend existing or create from template)                                                                                     |
+| 2   | **Thread history service** — ensure capability exists (extend existing or create from template); must use central `NeuronId`                                                                             |
+| 3   | **Host gRPC** — ensure `grpc.Server` + `mux.HandleGRPC(grpcServer)` exists (shared with scheduler when both skills apply)                                                                                |
+| 4   | **AG-UI launcher** — wire `webagui.NewLauncher(appName, WithThreadService(...), WithGRPCRegistrar(...))` inside `web.NewLauncher(...)` — add `WithCORS` only when user needs cross-origin browser client |
+| 5   | **Proto imports** — add orphan imports to define proto (common protobundle); ask user to **run define**                                                                                                  |
+| 6   | **Infra** — ensure `alis.agui.history.v1` Terraform module exists in `infra/modules/` and is wired in `main.tf` — see **`references/infra-agui-history.md`**                                             |
+| 7   | **Deployment** — add env vars (`ALIS_MANAGED_SPANNER_*`, `ALIS_OS_PROJECT`, `IDENTITY_SERVICE_URL`, `AGENT_SERVICE_URL`) and `agui` CLI arg — Dockerfile CMD **must match** Cloud Run args               |
+| 8   | **Dependencies** — ask user to install/upgrade if needed                                                                                                                                                 |
+| 9   | **Verify** — `go build ./...` and run locally                                                                                                                                                            |
+| 10  | **Browser UI** — if needed, ask whether they want **add-console**                                                                                                                                        |
+| 11  | **Orientation** — offer `references/request-flow.md` when relevant                                                                                                                                       |
 
-Template: **`references/templates/main-agui-wiring.go.example`**
+## Spanner metadata vs session messages
 
-## Service id
-
-The first argument to `NewLauncher` is the **AG-UI service id**. Use `focus_neuron_id` from the resolve script (or runtime context) — not the proto package name and not necessarily `llmagent.Config.Name`.
-
-If both LRO and AG-UI are enabled, use the **same** `focus_neuron_id` for `weblro.WithServiceID`, `InitLRO`, and `webagui.NewLauncher`.
+| Data                                               | Storage                       | API                                       |
+| -------------------------------------------------- | ----------------------------- | ----------------------------------------- |
+| Thread metadata (list, pin, unread, display names) | Spanner (`WithThreadService`) | `GET /agui/threads`, gRPC `ThreadService` |
+| Conversation message content                       | ADK `SessionService`          | `GET /agui/threads/{id}/messages`         |
 
 ## Proto imports for Spanner tables
 
-AG-UI thread/history storage uses Spanner tables provisioned through define. Add the following imports to **any one** proto in the agent's define package (typically `tools.proto`), even if nothing in the file references them:
+History and scheduler protos ship in the **common protobundle** (`go.alis.build/common`) — import only, do not author locally.
+
+Add both orphan imports to **any one** proto in the define package (typically `tools.proto`):
 
 ```protobuf
 import "alis/a2a/extension/scheduler/v1/scheduler.proto";
 import "alis/agui/history/v1/history.proto";
 ```
 
-Add **both** imports whenever threads/history Spanner tables are required — even if the agent does not use the scheduler yet. The imports are for table provisioning, not for RPC definitions in your service.
-
-Ask the user to **run define** on the package (or neuron) after editing the proto. Add **both** imports whenever either thread/history or scheduler Spanner tables are needed — the same rule applies for **add-scheduler**.
+Ask the user to **run define** on the package (or neuron). **Also** wire the Terraform history module — define and Terraform are both required. See **`references/infra-agui-history.md`**.
 
 ## Launcher options
 
-`webagui.NewLauncher` accepts functional options. Default minimal wiring: `WithCORS(webagui.CORSConfig{})`. Add options when the user's request maps to them (see **`references/launcher-options.md`** for the full table, trigger words, and routes).
+`webagui.NewLauncher` accepts functional options. Standard install always includes `WithThreadService` + `WithGRPCRegistrar`. See **`references/launcher-options.md`** for the full catalog.
 
-| Option | Purpose |
-|--------|---------|
-| `WithCORS` | Browser frontends on a different origin (required for most SPAs) |
-| `WithInterceptor` | Per-request auth/authz and SSE event hooks |
-| `WithThreadService` | Thread metadata (list, pin, unread) + history JSON-RPC — **thread history** |
-| `WithGRPCRegistrar` | Register `ThreadService` on host gRPC (requires `WithThreadService`) |
-| `WithHistoryJSONRPCOptions` | CORS etc. for history JSON-RPC handler |
-| `WithCapabilities` | `GET /capabilities` discovery document |
-| `WithGenAIPartConverter` | Custom `genai.Part` → AG-UI event mapping |
-| `WithMessagesSnapshotOnRunEnd` | Full message snapshot before every successful `RunFinished` |
-| `WithPredictState` | CopilotKit predictive state custom events |
-| `WithAgentStateEndpoint` | `POST /agents/state` on-demand state/messages |
-| `WithAppNameResolver` | Custom multi-agent app name resolution |
+| Option                   | Standard install | Purpose                                         |
+| ------------------------ | ---------------- | ----------------------------------------------- |
+| `WithThreadService`      | **always**       | Thread metadata + history JSON-RPC              |
+| `WithGRPCRegistrar`      | **always**       | Register `ThreadService` on host gRPC           |
+| `WithCORS`               | add-on           | Cross-origin browser clients (CopilotKit, etc.) |
+| `WithInterceptor`        | add-on           | Per-request auth/authz hooks                    |
+| `WithCapabilities`       | add-on           | `GET /capabilities` discovery                   |
+| `WithPredictState`       | add-on           | CopilotKit predictive state                     |
+| `WithAgentStateEndpoint` | add-on           | On-demand state/messages                        |
 
 CLI flag (not a `With*` option): `-path_prefix` (default `/agui`) after the `agui` keyword.
 
-For production CORS, set `AllowedOrigins` to frontend hosts — empty `CORSConfig{}` is fine for local dev. `WithInterceptor` is product-specific (see **Authentication** and `references/request-flow.md`).
+### Table naming
 
-### Thread history (`WithThreadService`)
+Go and Terraform must use the same prefix:
 
-When the user wants **thread history**, **threads**, or **thread metadata** on AG-UI:
-
-1. Scaffold **`internal/agui/history`** — `historyservice.NewThreadService` with Spanner env vars and neuron-scoped table prefix (see `alis/build/ge/test/agent/v1/agent/internal/agui/history/history.go`).
-2. In `main.go`, create a host `grpc.Server`, `mux.HandleGRPC(grpcServer)`, then pass the service and registrar:
-
-```go
-webagui.NewLauncher(adkAppName,
-    webagui.WithThreadService(history.Service),
-    webagui.WithCORS(webagui.CORSConfig{}),
-    webagui.WithGRPCRegistrar(grpcServer),
-)
+```
+tablePrefix = replace(ALIS_OS_PROJECT, "-", "_") + "_" + replace(NeuronId, "-", "_")
+ThreadsTable          = tablePrefix + "_Threads"
+UserThreadStatesTable = tablePrefix + "_UserThreadStates"
 ```
 
-3. Add proto imports (below) and run define.
-4. `agui` CLI arg is unchanged.
+## Deployment: launcher CLI args and env vars
 
-Without `WithThreadService`, `/run_sse` and `GET /threads/{id}/messages` (session-backed) still work; `GET /threads` listing and JSON-RPC history do not.
+Registering `webagui.NewLauncher` in Go is not enough — pass `agui` in Dockerfile CMD and Cloud Run args.
 
-## Deployment: launcher CLI args
-
-The ADK binary uses **positional CLI args** to activate each sublauncher at runtime. Registering `webagui.NewLauncher` in Go is not enough — you must also pass `agui` in the command args when running the binary.
-
-Only include sublauncher args for sublaunchers the agent actually uses. The AG-UI sublauncher is independent — it has no dependencies on other sublaunchers.
+**Dockerfile CMD and Cloud Run args must match** — same sublauncher list. Only include sublaunchers you activate at runtime.
 
 ### Dockerfile
 
@@ -199,6 +216,8 @@ CMD ["/app/main", "web", "-port", "8080", "agui"]
 
 ### Cloud Run (Terraform)
 
+See **`references/templates/infra/cloudrun-args.tf.snippet.example`** for env vars (`IDENTITY_SERVICE_URL`, `AGENT_SERVICE_URL`, Spanner vars).
+
 ```hcl
 containers {
   command = ["/app/main"]
@@ -206,40 +225,51 @@ containers {
 }
 ```
 
-### Minimal vs full example
+When **add-scheduler** is also wired, append `scheduler` and `-app_name=<AppName>`. See **add-scheduler** for scheduler CLI requirements.
 
-The above shows only what AG-UI requires. A typical agent with multiple sublaunchers might look like:
+## Browser UI (add-console)
 
-```
-args = ["web", "-port", "8080", "webui", "-api_server_address=/api", "api", "agui"]
-```
-
-Add other sublaunchers (`webui`, `api`, `lro`, `scheduler`, etc.) only if the agent uses them — they are not AG-UI prerequisites.
+Agent-side AG-UI wiring is a prerequisite for browser chat. For console BFF, reverse-proxy of `/agui/*`, gRPC-Web `ThreadService` clients, or load balancer setup, use **add-console** after this skill completes.
 
 ## Verification
 
+- [ ] One source for `AppName` + `NeuronId` — no duplicates introduced
+- [ ] Thread history service exists; uses central `NeuronId` for table prefix; exports `Service`
 - [ ] `go build ./...` passes
-- [ ] AG-UI sublauncher is inside `web.NewLauncher(...)`, not outside `universal.NewLauncher`
-- [ ] Service id matches `focus_neuron_id` from resolve script (or runtime context)
-- [ ] Dockerfile CMD and Cloud Run args include `agui`
-- [ ] When thread history requested: `WithThreadService` (+ `WithGRPCRegistrar` if using host gRPC), `internal/agui/history` wired
-- [ ] Proto imports for history (and scheduler) Spanner tables present when `WithThreadService` used; user ran define
-- [ ] Agent starts without launcher registration errors
+- [ ] `webagui.NewLauncher(appName, WithThreadService, WithGRPCRegistrar)` inside `web.NewLauncher(...)`
+- [ ] Host `grpc.Server` registered with `mux.HandleGRPC`
+- [ ] Proto imports in define; user ran define
+- [ ] `infra/modules/alis.agui.history.v1` present; module wired in `infra/main.tf`
+- [ ] `local.neuron` / `NEURON` matches central `NeuronId`
+- [ ] Spanner, `IDENTITY_SERVICE_URL`, `AGENT_SERVICE_URL` env vars on deployment
+- [ ] Dockerfile CMD and Cloud Run args include `agui` and **match each other**
+- [ ] Agent starts without history initialization errors
 
 ## Pitfalls
 
-- Wrong service id — use `focus_neuron_id` from the resolve script, not infra Terraform locals or templates from other agents.
-- Adding AG-UI outside `web.NewLauncher` — it must be a **sibling** sublauncher with `webui`, `webapi`, `weblro`, etc.
-- Running `go get` before confirming whether `go.alis.build/adk/launchers` is already required — ask user to install dependencies when unsure.
-- Missing `agui` in Dockerfile CMD or Cloud Run args — the sublauncher is registered in Go but won't activate without the CLI arg.
-- Skipping proto imports for Spanner tables — `WithThreadService` storage will not be provisioned; add both `scheduler.proto` and `history.proto` imports and run define.
-- Confusing session message history with thread metadata — `GET /threads/{id}/messages` uses ADK sessions; thread list/pin/unread requires `WithThreadService`.
-- Calling `threadService.Register` manually when `WithGRPCRegistrar` is already set — the launcher registers it during `SetupHostRoutes`.
+- Creating new packages without discovering existing ones — always search first
+- Refactoring the user's layout to match skill templates without being asked
+- Passing hyphenated `focus_neuron_id` to `NewLauncher` — use `AppName` (periods)
+- Inventing `AppName` independently of discovered neuron id — must be same id, different separator
+- Go/TF table prefix mismatch — central `NeuronId` must equal `local.neuron` / module `NEURON`
+- Calling `history.RegisterGRPC` when `WithGRPCRegistrar` already set — launcher registers during `SetupHostRoutes`
+- Dockerfile CMD differs from Cloud Run args — sublauncher drift
+- Skipping define **or** skipping Terraform history module — both required
+- Confusing session messages with thread metadata — messages are session-backed; list/pin/unread need Spanner
+- Missing `agui` in CLI args — sublauncher won't activate without it
+- Missing `IDENTITY_SERVICE_URL` — mux auth on `/agui/*` fails at runtime
 
 ## References & templates
 
-| File | Purpose |
-|------|---------|
-| `references/templates/main-agui-wiring.go.example` | Entrypoint AG-UI sublauncher wiring |
-| `references/launcher-options.md` | All `NewLauncher` options, trigger words, routes, thread-history reference wiring |
-| `references/request-flow.md` | Guided code walkthrough: how a /run_sse request flows through mux auth and the agui handler |
+| File                                                          | Purpose                                          |
+| ------------------------------------------------------------- | ------------------------------------------------ |
+| `references/templates/agui-launcher-wiring.go.example`        | Entrypoint AG-UI sublauncher wiring              |
+| `references/templates/central-identity.go.example`            | Central `AppName` + `NeuronId`                   |
+| `references/templates/thread-service-bootstrap.go.example`    | Spanner `ThreadService` bootstrap                |
+| `references/templates/infra/history-module.tf.example`        | Full `alis.agui.history.v1` Terraform module     |
+| `references/templates/infra/main.tf.snippet.example`          | Module block for `infra/main.tf`                 |
+| `references/templates/infra/cloudrun-args.tf.snippet.example` | Cloud Run args + env vars                        |
+| `references/infra-agui-history.md`                            | Define + Terraform + deployment guide            |
+| `references/launcher-options.md`                              | All `NewLauncher` options, trigger words, routes |
+| `references/request-flow.md`                                  | Auth → handler → SSE code walkthrough            |
+| `references/alis-workspace.md`                                | Path discovery and workspace rules               |

@@ -16,6 +16,8 @@ metadata:
 
 LRO tools return a `google.longrunning.Operation` handle immediately; work continues via Cloud Tasks and Spanner (`alis.lro.v2`). When started from the ADK web UI, completed operations can resume the chat session via `POST /api/run`.
 
+Before creating any new package, search the build module for existing LRO wiring using discovery signals (`InitLRO`, `NewLROTool`, `weblro`). Extend existing packages rather than creating parallel ones. Do not refactor the user's layout to match templates. Templates provide greenfield defaults for new projects only.
+
 ## Runtime Context
 
 This skill may be loaded with an `<alis-runtime-context>` block injected at the top of these
@@ -37,7 +39,7 @@ below and uses it as the `read_mask` on `GetContext` — the block carries **onl
 | Value | Context field | If absent (after script + block) |
 | ----- | ------------- | -------------------------------- |
 | Neuron / service id | `focus_neuron_id` | LRO service id for `InitLRO`, `weblro.WithServiceID`, and infra |
-| Neuron build root | `workstations.build_repos` | Go module with `internal/tools`, entrypoint, and LRO handlers |
+| Neuron build root | `workstations.build_repos` | Go module with tools, entrypoint, and LRO handlers |
 | Neuron define tree | `workstations.define_repos` | Define package for LRO `tools.proto` RPCs |
 
 ## Available scripts
@@ -50,7 +52,7 @@ below and uses it as the `read_mask` on `GetContext` — the block carries **onl
 bash scripts/resolve-alis-workspace.sh --json
 ```
 
-Then read **`references/workspace-lro.md`**, **`references/alis-workspace.md`**, and **`references/define-stubs.md`**. Follow **`references/alis-workspace.md`** resolution order (script → runtime context → MCP → neuron anchors) — never derive paths from another product or chat.
+Then read **`references/workspace-lro.md`**, **`references/alis-workspace.md`**, and **`references/define-stubs.md`**. Follow **`references/alis-workspace.md`** resolution order (script -> runtime context -> MCP -> neuron anchors) — never derive paths from another product or chat.
 
 ## When to use
 
@@ -66,7 +68,7 @@ See the skill **description** (primary trigger). LRO proto + infra + InitLRO + o
 
 ## Prerequisites
 
-- **add-tool** bootstrap (recommended): `tools.proto`, `internal/tools`, entrypoint `tools.MyTools()`. If missing, run **add-tool** Phase A first.
+- **add-tool** bootstrap (recommended): `tools.proto`, tools package, entrypoint `tools.MyTools()`. If missing, run **add-tool** Phase A first.
 - User runs code generation — **`references/define-stubs.md`**.
 - Code generation (define) is a user-side operation — the agent does not have access to the build pipeline.
 
@@ -74,13 +76,13 @@ See the skill **description** (primary trigger). LRO proto + infra + InitLRO + o
 
 ```
 tools.proto (LRO RPC + operation_info)
-       ↓  user define
-internal/tools/service.go   NewOperation → ResumeViaTasks → resumable handler
-internal/tools/tools.go     NewLROTool (WrapToolContext)
-internal/tools/grpc.go      InitLRO + AddResumableHandler
-internal/lroresume          ResumeAfterOperation → POST /api/run
-infra alis.lro.v2           Spanner + Cloud Tasks queue
-agent entrypoint            MustInitLRO + weblro sublauncher
+       |  user define
+tools service         NewOperation -> ResumeViaTasks -> resumable handler
+tools package         NewLROTool (WrapToolContext)
+LRO init package      InitLRO + AddResumableHandler
+lroresume package     ResumeAfterOperation -> POST /api/run
+infra alis.lro.v2     Spanner + Cloud Tasks queue
+agent entrypoint      MustInitLRO + weblro sublauncher
 ```
 
 `lroServiceID` in Go must match `focus_neuron_id` from the resolve script. `lroresume.DefaultAppName` must match `llmagent.Config.Name`.
@@ -93,8 +95,8 @@ Summary:
 
 1. Add **`references/infra-lro.md`** module under `infra/`.
 2. Ensure `tools.proto` imports `google/longrunning/operations.proto`.
-3. Ask user to **run a define on the package** or **neuron** → **stop** → ask **install required dependencies**.
-4. Merge LRO helpers into `tools.go`, add `grpc.go`, copy `internal/lroresume`, wire entrypoint + `weblro`.
+3. Ask user to **run a define on the package** or **neuron** -> **stop** -> ask **install required dependencies**.
+4. Merge LRO helpers into tools package, add LRO init, copy lroresume, wire entrypoint + `weblro`.
 
 ## Phase B — Add an LRO tool
 
@@ -102,8 +104,8 @@ Read and follow **`references/lro-tool-checklist.md`**.
 
 For each tool:
 
-1. Add LRO RPC + messages + `operation_info` to **this agent’s** `tools.proto`.
-2. define → install deps → implement RPC + resumable handler → `AddResumableHandler` → `NewLROTool` in `MyTools()`.
+1. Add LRO RPC + messages + `operation_info` to **this agent's** `tools.proto`.
+2. define -> install deps -> implement RPC + resumable handler -> `AddResumableHandler` -> `NewLROTool` in `MyTools()`.
 3. `go build ./...` and smoke-test locally.
 
 Naming: tool name **snake_case** (e.g. `run_deep_research`). Resume path: **unique kebab-case string** per tool (e.g. `run-deep-research`).
@@ -153,16 +155,18 @@ Add other sublaunchers (`webui`, `agui`, `scheduler`, etc.) only if the agent us
 
 ## Pitfalls
 
-- Editing protos or code outside the user’s current workspace — **`references/workspace-lro.md`**.
-- Running define or `go mod edit` before define + install finish.
-- `LRO == nil` at runtime — `MustInitLRO` not called or wrong `serviceID`.
-- Mismatched neuron id between `focus_neuron_id`, `InitLRO`, and `weblro.WithServiceID` — run the resolve script first; do not read infra Terraform for the id.
-- Duplicate resume paths across LRO tools.
-- Using `NewTool` instead of `NewLROTool` for Operation-returning RPCs.
-- Forgetting `ResumeAfterOperation` when the web session should get the final function response.
-- Missing LRO env vars on `google_vertex_ai_reasoning_engine` `deployment_spec` — `lro.NewFromEnv` fails at runtime on Agent Engine.
-- Missing `lro` in Dockerfile CMD or Cloud Run args — the sublauncher is registered in Go but won’t activate without the CLI arg.
-- Implementing sync tools here — use **add-tool**.
+- Creating new LRO packages without discovering existing ones — search for `InitLRO`, `NewLROTool`, `weblro` before creating
+- Refactoring the user's layout to match skill templates without being asked
+- Editing protos or code outside the user's current workspace — **`references/workspace-lro.md`**
+- Running define or `go mod edit` before define + install finish
+- `LRO == nil` at runtime — `MustInitLRO` not called or wrong `serviceID`
+- Mismatched neuron id between `focus_neuron_id`, `InitLRO`, and `weblro.WithServiceID` — run the resolve script first; do not read infra Terraform for the id
+- Duplicate resume paths across LRO tools
+- Using `NewTool` instead of `NewLROTool` for Operation-returning RPCs
+- Forgetting `ResumeAfterOperation` when the web session should get the final function response
+- Missing LRO env vars on `google_vertex_ai_reasoning_engine` `deployment_spec` — `lro.NewFromEnv` fails at runtime on Agent Engine
+- Missing `lro` in Dockerfile CMD or Cloud Run args — the sublauncher is registered in Go but won't activate without the CLI arg
+- Implementing sync tools here — use **add-tool**
 
 ## Templates index
 
@@ -173,7 +177,7 @@ Add other sublaunchers (`webui`, `agui`, `scheduler`, etc.) only if the agent us
 | `references/lro-tool-checklist.md` | Per-tool steps |
 | `references/infra-lro.md` | alis.lro.v2 Terraform module |
 | `references/resume-flow.md` | /api/run resume semantics |
-| `references/define-stubs.md` | Code generation → install deps → Go |
+| `references/define-stubs.md` | Code generation -> install deps -> Go |
 | `references/alis-workspace.md` | Agent workspace layout and path discovery |
 | `references/json-schema.md` | Input schema options |
 | `references/templates/tools.proto.lro-snippet.example` | LRO RPC + messages |

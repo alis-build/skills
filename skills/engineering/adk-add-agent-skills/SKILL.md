@@ -13,7 +13,9 @@ metadata:
 
 # Add agent skills (skill toolset)
 
-Agent **skills** are markdown instruction packs the model loads on demand (`load_skill`, etc.). They live under `internal/skills/skills/<name>/SKILL.md`, are embedded into the binary, and exposed through ADK **`skilltoolset`** on `llmagent.Config.Toolsets` — separate from proto-backed **Tools** (`add-tool` / `add-lro`).
+Agent **skills** are markdown instruction packs the model loads on demand (`load_skill`, etc.). They are embedded into the binary via `go:embed` and exposed through ADK **`skilltoolset`** on `llmagent.Config.Toolsets` — separate from proto-backed **Tools** (`add-tool` / `add-lro`).
+
+Before creating any new package, search the build module for existing skill toolset wiring (`skilltoolset`, `go:embed skills`, `SkillToolset`). Extend existing packages rather than creating parallel ones. The embed directory must be relative to its Go file, but the exact package location is flexible.
 
 ## Runtime Context
 
@@ -109,11 +111,13 @@ Add as many skills as needed; each is one folder + one `SKILL.md`.
 
 ## Pitfalls
 
-- Putting runtime skills in `.agents/skills/` at the neuron root — that path is for **agent-tooling install** skills (via skills.sh); runtime skills belong in `agent/internal/skills/skills/`.
-- Forgetting `//go:embed skills` path matches the directory name exactly.
-- Only updating `Tools` but not `Toolsets` — skills will not appear.
-- Duplicate `name` in frontmatter across two folders.
-- Empty `description` — hurts automatic skill selection.
+- Creating a new skills package without discovering existing `skilltoolset` wiring — search for `skilltoolset`, `go:embed skills`, `SkillToolset` before creating
+- Refactoring the user's existing skills location to match skill templates without being asked
+- Putting runtime skills in `.agents/skills/` at the neuron root — that path is for **agent-tooling install** skills (via skills.sh); runtime skills live inside the Go module
+- Forgetting `//go:embed skills` path matches the directory name exactly
+- Only updating `Tools` but not `Toolsets` — skills will not appear
+- Duplicate `name` in frontmatter across two folders
+- Empty `description` — hurts automatic skill selection
 
 ## Optional enhancements (out of scope for minimal wiring)
 
