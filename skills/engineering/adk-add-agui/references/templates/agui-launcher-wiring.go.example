@@ -1,6 +1,6 @@
 // Capability: AG-UI launcher wiring
 // Contract: webagui.NewLauncher(appName, WithThreadService(...), WithGRPCRegistrar(grpcServer))
-//           registered inside web.NewLauncher(...). Host grpc.Server registered with mux.HandleGRPC.
+//           registered inside web.NewLauncher(...). Host grpc.Server with iam interceptors + mux.HandleGRPC.
 // Greenfield default path: main.go (or agent entrypoint)
 //
 // If entrypoint currently imports google.golang.org/adk/cmd/launcher/web as the web host,
@@ -18,6 +18,7 @@ import (
 	"REPLACE_WITH_YOUR_MODULE/internal/info"
 	webagui "go.alis.build/adk/launchers/agui"
 	web "go.alis.build/adk/launchers/web"
+	"go.alis.build/iam/v3"
 	"go.alis.build/mux"
 	"google.golang.org/adk/cmd/launcher/universal"
 	"google.golang.org/grpc"
@@ -27,7 +28,10 @@ func main() {
 	ctx := context.Background()
 	// ... agent config — llmagent.Config.Name must match AppName from central identity ...
 
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(
+		grpc.UnaryInterceptor(iam.UnaryInterceptor),
+		grpc.StreamInterceptor(iam.StreamInterceptor),
+	)
 	mux.HandleGRPC(grpcServer)
 
 	l := universal.NewLauncher(web.NewLauncher(

@@ -66,7 +66,7 @@ Landing zone (organisation) → product → neuron (deployable service). Build a
 | Cloud Tasks queue name | `{NeuronId}-a2a-scheduler` |
 | Spanner table prefix | `{project}_{NeuronId}` (hyphens to underscores) |
 | `AppName` | First arg to `webscheduler.NewLauncher`; `-app_name` CLI flag |
-| gRPC interceptor | `schedulerservice.UnaryServerInterceptor()` on `grpc.NewServer` |
+| gRPC interceptor | `iam.UnaryInterceptor` + `iam.StreamInterceptor` (`go.alis.build/iam/v3`) on `grpc.NewServer` |
 | `WithGRPCRegistrar` | **required** on `webscheduler.NewLauncher` |
 | Shared gRPC host | Same `grpcServer` as **add-agui** when both wired |
 

@@ -1,6 +1,6 @@
 // Capability: Scheduler launcher wiring
 // Contract: scheduler.MustInitScheduler(ctx) called before launcher.
-//           grpc.NewServer with schedulerservice.UnaryServerInterceptor + mux.HandleGRPC.
+//           grpc.NewServer with iam.UnaryInterceptor + iam.StreamInterceptor + mux.HandleGRPC.
 //           webscheduler.NewLauncher(appName, service, WithGRPCRegistrar(grpcServer)) in web.NewLauncher.
 // Greenfield default path: main.go (or agent entrypoint)
 //
@@ -17,9 +17,9 @@
 import (
 	"REPLACE_WITH_YOUR_MODULE/internal/info"
 	"REPLACE_WITH_YOUR_MODULE/internal/scheduler"
-	schedulerservice "go.alis.build/a2a/extension/scheduler/service"
 	webscheduler "go.alis.build/adk/launchers/scheduler"
 	launchersweb "go.alis.build/adk/launchers/web"
+	"go.alis.build/iam/v3"
 	"go.alis.build/mux"
 	"google.golang.org/adk/cmd/launcher/universal"
 	"google.golang.org/grpc"
@@ -31,7 +31,10 @@ func main() {
 
 	scheduler.MustInitScheduler(ctx)
 
-	grpcServer := grpc.NewServer(grpc.UnaryInterceptor(schedulerservice.UnaryServerInterceptor()))
+	grpcServer := grpc.NewServer(
+		grpc.UnaryInterceptor(iam.UnaryInterceptor),
+		grpc.StreamInterceptor(iam.StreamInterceptor),
+	)
 	mux.HandleGRPC(grpcServer)
 
 	l := universal.NewLauncher(launchersweb.NewLauncher(

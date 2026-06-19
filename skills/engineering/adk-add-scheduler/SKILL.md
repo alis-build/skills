@@ -3,7 +3,7 @@ name: adk-add-scheduler
 description: >
   Use this skill when the user wants scheduled or recurring agent runs, A2A scheduler extension,
   cron jobs, webscheduler launcher, or Cloud Tasks delivery for the agent — even if they do not
-  say scheduler extension. Wires scheduler service, Spanner tables, gRPC interceptor, and
+  say scheduler extension. Wires scheduler service, Spanner tables, IAM gRPC interceptors, and
   webscheduler.NewLauncher with WithGRPCRegistrar. Not for sync tools (add-tool), LRO (add-lro),
   AG-UI (add-agui), or embedded runtime skills (add-agent-skills).
 metadata:
@@ -57,7 +57,7 @@ Then read **`references/workspace-scheduler.md`** for path rules and central ide
 
 ## When to use
 
-See the skill **description** (primary trigger). Standard install wires: central identity, scheduler service bootstrap, gRPC interceptor, `webscheduler.WithGRPCRegistrar`, proto imports, Terraform module, deployment args.
+See the skill **description** (primary trigger). Standard install wires: central identity, scheduler service bootstrap, IAM gRPC interceptors, `webscheduler.WithGRPCRegistrar`, proto imports, Terraform module, deployment args.
 
 ## When not to use
 
@@ -113,8 +113,8 @@ This skill introduces three capabilities. For each: discover existing → extend
 
 | | |
 |-|-|
-| **Contract** | `scheduler.MustInitScheduler(ctx)` called before launcher. `grpc.NewServer(grpc.UnaryInterceptor(schedulerservice.UnaryServerInterceptor()))` + `mux.HandleGRPC(grpcServer)`. `webscheduler.NewLauncher(appName, scheduler.Service, webscheduler.WithGRPCRegistrar(grpcServer))` registered inside `web.NewLauncher(...)`. |
-| **Discovery signals** | `webscheduler.NewLauncher`, `WithGRPCRegistrar`, `UnaryServerInterceptor`, existing scheduler sublauncher |
+| **Contract** | `scheduler.MustInitScheduler(ctx)` called before launcher. `grpc.NewServer(grpc.UnaryInterceptor(iam.UnaryInterceptor), grpc.StreamInterceptor(iam.StreamInterceptor))` + `mux.HandleGRPC(grpcServer)`. `webscheduler.NewLauncher(appName, scheduler.Service, webscheduler.WithGRPCRegistrar(grpcServer))` registered inside `web.NewLauncher(...)`. |
+| **Discovery signals** | `webscheduler.NewLauncher`, `WithGRPCRegistrar`, `iam.UnaryInterceptor`, `iam.StreamInterceptor`, existing scheduler sublauncher |
 | **Wire points** | Agent entrypoint, inside the `web.NewLauncher(...)` call |
 | **Greenfield default** | See `references/templates/scheduler-launcher-wiring.go.example` |
 
@@ -126,7 +126,7 @@ This skill introduces three capabilities. For each: discover existing → extend
 | 1 | **Central identity** — ensure one source for `AppName` + `NeuronId` exists (extend existing or create from template) |
 | 2 | **Scheduler service** — ensure capability exists (extend existing or create from template); must use central `NeuronId` |
 | 3 | **Web launcher stack** — if entrypoint imports `google.golang.org/adk/cmd/launcher/web`, migrate web host to `go.alis.build/adk/launchers/web` before adding `webscheduler` |
-| 4 | **Host gRPC** — ensure `grpc.Server` + `schedulerservice.UnaryServerInterceptor()` + `mux.HandleGRPC(grpcServer)` exists (shared with add-agui when both apply) |
+| 4 | **Host gRPC** — ensure `grpc.Server` with `iam.UnaryInterceptor` + `iam.StreamInterceptor` (`go.alis.build/iam/v3`) + `mux.HandleGRPC(grpcServer)` exists (shared with add-agui when both apply) |
 | 5 | **Scheduler launcher** — wire `webscheduler.NewLauncher(appName, service, WithGRPCRegistrar(...))` inside `web.NewLauncher(...)` |
 | 6 | **Proto imports** — add orphan imports to define proto (common protobundle); ask user to **run define** |
 | 7 | **Infra** — ensure `alis.a2a.extension.scheduler.v1` Terraform module + Cloud Tasks queue exist — see **`references/infra-scheduler.md`** |
@@ -201,7 +201,7 @@ args = ["web", "-port", "8080", "agui", "scheduler", "-app_name=my.neuron.v1"]
 - [ ] One source for `AppName` + `NeuronId` — no duplicates in scheduler or entrypoint
 - [ ] Scheduler service exists; uses central `NeuronId` for queue and table prefix; exports `Service` + `MustInitScheduler`
 - [ ] `scheduler.MustInitScheduler(ctx)` called before launcher
-- [ ] gRPC server with `schedulerservice.UnaryServerInterceptor()` + `mux.HandleGRPC`
+- [ ] gRPC server with `iam.UnaryInterceptor` + `iam.StreamInterceptor` + `mux.HandleGRPC`
 - [ ] `webscheduler.NewLauncher(appName, ..., WithGRPCRegistrar(grpcServer))` inside `web.NewLauncher(...)` from `go.alis.build/adk/launchers/web` — **WithGRPCRegistrar required**
 - [ ] No `google.golang.org/adk/cmd/launcher/web` import when `webscheduler` is wired
 - [ ] Cloud Tasks queue `{NeuronId}-a2a-scheduler` exists
@@ -219,6 +219,7 @@ args = ["web", "-port", "8080", "agui", "scheduler", "-app_name=my.neuron.v1"]
 - Declaring `serviceID` in scheduler code instead of importing from central identity
 - Passing hyphenated `focus_neuron_id` to `NewLauncher` — use `AppName`
 - Forgetting `WithGRPCRegistrar` — scheduler gRPC won't register
+- Using `schedulerservice.UnaryServerInterceptor()` on host `grpc.Server` — use `iam.UnaryInterceptor` + `iam.StreamInterceptor` from `go.alis.build/iam/v3`
 - Dockerfile CMD differs from Cloud Run args
 - Cloud Tasks queue name mismatch — must be `{NeuronId}-a2a-scheduler`
 - `local.neuron` in infra does not match central `NeuronId`

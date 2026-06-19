@@ -103,9 +103,15 @@ Discover existing capabilities before creating new packages. The steps below use
 
 1. **Central identity** — single source for `AppName` + `NeuronId` (discover existing or create).
 2. **Thread history** — `ThreadService` bootstrap using central `NeuronId` for table prefix.
-3. **Entrypoint** — host `grpc.Server`, `mux.HandleGRPC(grpcServer)`, then:
+3. **Entrypoint** — host `grpc.Server` with IAM interceptors, `mux.HandleGRPC(grpcServer)`, then:
 
 ```go
+grpcServer := grpc.NewServer(
+    grpc.UnaryInterceptor(iam.UnaryInterceptor),
+    grpc.StreamInterceptor(iam.StreamInterceptor),
+)
+mux.HandleGRPC(grpcServer)
+
 webagui.NewLauncher(info.AppName,
     webagui.WithThreadService(history.Service),
     webagui.WithGRPCRegistrar(grpcServer),

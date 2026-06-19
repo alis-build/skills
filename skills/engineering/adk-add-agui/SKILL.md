@@ -145,8 +145,8 @@ This skill introduces three capabilities. For each: discover existing → extend
 
 |                        |                                                                                                                                                                                                                 |
 | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Contract**           | `webagui.NewLauncher(appName, webagui.WithThreadService(historyService), webagui.WithGRPCRegistrar(grpcServer))` registered inside `web.NewLauncher(...)`. Host `grpc.Server` registered with `mux.HandleGRPC`. |
-| **Discovery signals**  | `webagui.NewLauncher`, `WithThreadService`, `WithGRPCRegistrar`, existing AG-UI sublauncher                                                                                                                     |
+| **Contract**           | `webagui.NewLauncher(appName, webagui.WithThreadService(historyService), webagui.WithGRPCRegistrar(grpcServer))` registered inside `web.NewLauncher(...)`. Host `grpc.Server` with `iam.UnaryInterceptor` + `iam.StreamInterceptor` (`go.alis.build/iam/v3`) registered with `mux.HandleGRPC`. |
+| **Discovery signals**  | `webagui.NewLauncher`, `WithThreadService`, `WithGRPCRegistrar`, `iam.UnaryInterceptor`, `iam.StreamInterceptor`, existing AG-UI sublauncher                                                                                                                     |
 | **Wire points**        | Agent entrypoint, inside the `web.NewLauncher(...)` call                                                                                                                                                        |
 | **Greenfield default** | See `references/templates/agui-launcher-wiring.go.example`                                                                                                                                                      |
 
@@ -158,7 +158,7 @@ This skill introduces three capabilities. For each: discover existing → extend
 | 1   | **Central identity** — ensure one source for `AppName` + `NeuronId` exists (extend existing or create from template)                                                                                     |
 | 2   | **Thread history service** — ensure capability exists (extend existing or create from template); must use central `NeuronId`                                                                             |
 | 3   | **Web launcher stack** — if entrypoint imports `google.golang.org/adk/cmd/launcher/web`, migrate web host to `go.alis.build/adk/launchers/web` before adding `webagui`          |
-| 4   | **Host gRPC** — ensure `grpc.Server` + `mux.HandleGRPC(grpcServer)` exists (shared with scheduler when both skills apply)                                                                                |
+| 4   | **Host gRPC** — ensure `grpc.Server` with `iam.UnaryInterceptor` + `iam.StreamInterceptor` (`go.alis.build/iam/v3`) + `mux.HandleGRPC(grpcServer)` exists (shared with scheduler when both skills apply)                                                                                |
 | 5   | **AG-UI launcher** — wire `webagui.NewLauncher(appName, WithThreadService(...), WithGRPCRegistrar(...))` inside `web.NewLauncher(...)` — add `WithCORS` only when user needs cross-origin browser client |
 | 6   | **Proto imports** — add orphan imports to define proto (common protobundle); ask user to **run define**                                                                                                  |
 | 7   | **Infra** — ensure `alis.agui.history.v1` Terraform module exists in `infra/modules/` and is wired in `main.tf` — see **`references/infra-agui-history.md`**                                             |
@@ -250,7 +250,7 @@ Agent-side AG-UI wiring is a prerequisite for browser chat. For console BFF, rev
 - [ ] `go build ./...` passes
 - [ ] `webagui.NewLauncher(appName, WithThreadService, WithGRPCRegistrar)` inside `web.NewLauncher(...)` from `go.alis.build/adk/launchers/web`
 - [ ] No `google.golang.org/adk/cmd/launcher/web` import when `webagui` is wired
-- [ ] Host `grpc.Server` registered with `mux.HandleGRPC`
+- [ ] Host `grpc.Server` with `iam.UnaryInterceptor` + `iam.StreamInterceptor` registered with `mux.HandleGRPC`
 - [ ] Proto imports in define; user ran define
 - [ ] `infra/modules/alis.agui.history.v1` present; module wired in `infra/main.tf`
 - [ ] `local.neuron` / `NEURON` matches central `NeuronId`
@@ -273,6 +273,7 @@ Agent-side AG-UI wiring is a prerequisite for browser chat. For console BFF, rev
 - Confusing session messages with thread metadata — messages are session-backed; list/pin/unread need Spanner
 - Missing `agui` in CLI args — sublauncher won't activate without it
 - Missing `IDENTITY_SERVICE_URL` — mux auth on `/agui/*` fails at runtime
+- Host `grpc.Server` without `iam.UnaryInterceptor` + `iam.StreamInterceptor` — use `go.alis.build/iam/v3`
 - Application env vars added to only one of `cloudrun.tf` or `agent.tf` — same image, both runtimes need them
 - `GOOGLE_CLOUD_*` vars added to `deployment_spec` — Reasoning Engine injects these automatically
 
