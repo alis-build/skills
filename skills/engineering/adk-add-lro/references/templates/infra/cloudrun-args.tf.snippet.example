@@ -1,16 +1,14 @@
-# Cloud Run container args and env vars for the scheduler on the agent service.
+# Cloud Run container args and env vars for LRO on the agent service.
 # Dockerfile CMD must use the same sublauncher args as Cloud Run.
 #
 # Mirror application env vars on google_vertex_ai_reasoning_engine.spec.deployment_spec
-# (see agent.tf.deployment_spec-envs.example). GOOGLE_CLOUD_* vars are Cloud Run only.
+# (see agent.tf.deployment_spec-lro-envs.example). GOOGLE_CLOUD_* vars are Cloud Run only.
 #
-# Only include sublauncher args for sublaunchers the agent actually uses.
-# The scheduler does not depend on webui, api, lro, or agui.
+# The lro sublauncher requires api (for /api/run resume). Include other sublaunchers only if used.
 
-# Minimal (scheduler only):
 containers {
   command = ["/app/main"]
-  args    = ["web", "-port", "8080", "scheduler", "-app_name=my.neuron.v1"]
+  args    = ["web", "-port", "8080", "api", "lro"]
 
   env {
     name  = "ALIS_OS_PROJECT"
@@ -56,7 +54,7 @@ containers {
 }
 
 # Dockerfile (must match args above):
-# CMD ["/app/main", "web", "-port", "8080", "scheduler", "-app_name=my.neuron.v1"]
+# CMD ["/app/main", "web", "-port", "8080", "api", "lro"]
 
 # Typical (with other sublaunchers the agent uses):
 # args = ["web", "-port", "8080", "webui", "-api_server_address=/api", "api", "lro", "scheduler", "-app_name=my.neuron.v1"]

@@ -14,6 +14,10 @@ containers {
     value = var.ALIS_OS_PROJECT
   }
   env {
+    name  = "ALIS_PROJECT_NR"
+    value = var.ALIS_PROJECT_NR
+  }
+  env {
     name  = "ALIS_MANAGED_SPANNER_PROJECT"
     value = var.ALIS_MANAGED_SPANNER_PROJECT
   }
@@ -32,6 +36,19 @@ containers {
   env {
     name  = "AGENT_SERVICE_URL"
     value = local.agent_service_url
+  }
+  # Cloud Run only — do not add to agent.tf deployment_spec (Reasoning Engine injects these).
+  env {
+    name  = "GOOGLE_CLOUD_PROJECT"
+    value = var.ALIS_PROJECT_NR
+  }
+  env {
+    name  = "GOOGLE_CLOUD_LOCATION"
+    value = var.ALIS_REGION
+  }
+  env {
+    name  = "GOOGLE_CLOUD_AGENT_ENGINE_ID"
+    value = google_vertex_ai_reasoning_engine.reasoning_engine.id
   }
 }
 

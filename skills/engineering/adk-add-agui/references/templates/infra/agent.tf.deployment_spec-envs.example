@@ -1,20 +1,15 @@
 # Snippet: add inside google_vertex_ai_reasoning_engine.spec.deployment_spec
 # (merge with existing env blocks — telemetry, ALIS_OS_VERSION, etc.)
 #
-# Also mirror these application env vars on google_cloud_run_v2_service (agent container).
+# Mirror the same application env vars on google_cloud_run_v2_service (agent container).
 # Do NOT add GOOGLE_CLOUD_PROJECT, GOOGLE_CLOUD_LOCATION, or GOOGLE_CLOUD_AGENT_ENGINE_ID
 # here — Vertex AI / Agent Engine injects those automatically.
 #
-# Requires standard Alis infra variables and local.agent_service_url, e.g.:
-#   agent_service_url = var.AGENT_SERVICE_URL != "" ? var.AGENT_SERVICE_URL : "https://{neuron}-${var.ALIS_PROJECT_NR}.${var.ALIS_REGION}.run.app"
+# When scheduler is also wired, add ALIS_REGION etc. per add-scheduler.
 
       env {
         name  = "ALIS_OS_PROJECT"
         value = var.ALIS_OS_PROJECT
-      }
-      env {
-        name  = "ALIS_REGION"
-        value = var.ALIS_REGION
       }
       env {
         name  = "ALIS_PROJECT_NR"
@@ -31,6 +26,10 @@
       env {
         name  = "ALIS_MANAGED_SPANNER_DB"
         value = var.ALIS_MANAGED_SPANNER_DB
+      }
+      env {
+        name  = "IDENTITY_SERVICE_URL"
+        value = local.identity_service_url
       }
       env {
         name  = "AGENT_SERVICE_URL"

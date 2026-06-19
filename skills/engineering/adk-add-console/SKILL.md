@@ -94,10 +94,25 @@ A user asking to **expose the agent with a UI**, **add a frontend**, or **add co
 - `ALIS_OS_PROJECT` and `IDENTITY_SERVICE_URL` set at process start (required by `go.alis.build/mux`, pulled in via `go.alis.build/adk/launchers/web`).
 - User can **install required dependencies** if `go.alis.build/adk/launchers` is not already in `go.mod`.
 
+## Web launcher stack
+
+Before adding `console`, ensure the entrypoint uses Alis launchers — not stock ADK google launchers.
+
+| | |
+|-|-|
+| **Contract** | When wiring any `go.alis.build/adk/launchers/*` sublauncher (console, agui, scheduler, lro), the web host must import `go.alis.build/adk/launchers/web` — not `google.golang.org/adk/cmd/launcher/web`. Alis sublaunchers use `go.alis.build/adk/launchers/*`. Stock ADK sublaunchers without Alis equivalents (api, webui, a2a, agentengine) keep `google.golang.org/adk/cmd/launcher/*` imports as children inside the Alis web host. Do not use a google web host with Alis sublaunchers. `google.golang.org/adk/cmd/launcher/universal` stays unchanged. |
+| **Discovery signals** | `google.golang.org/adk/cmd/launcher/web`, `google.golang.org/adk/cmd/launcher/webui`, `webapi`, `weba2a`, `webagentengine` |
+| **Wire points** | Entrypoint import block and `universal.NewLauncher(launchersweb.NewLauncher(...))` call |
+
+**Action:** If the entrypoint uses `google.golang.org/adk/cmd/launcher/web` as the web host, replace it with `go.alis.build/adk/launchers/web` before appending `console.NewLauncher`. Migrate any existing Alis sublaunchers to `go.alis.build/adk/launchers/*`. Stock ADK sublaunchers (webui, api, a2a, agentengine) without Alis equivalents may keep their google imports inside the Alis web host. API surface is similar; Alis web adds mux/auth and other platform behavior. Keep existing sublauncher call order.
+
+Also distinguish console packages: `go.alis.build/adk/launchers/console` (this skill) vs `google.golang.org/adk/cmd/launcher/console` (stock ADK TUI — out of scope).
+
 ## Steps
 
 | # | Action |
 |---|--------|
+| 0 | **Web launcher stack** — if entrypoint imports `google.golang.org/adk/cmd/launcher/web`, migrate web host to `go.alis.build/adk/launchers/web` |
 | 1 | Add import: `console "go.alis.build/adk/launchers/console"` |
 | 2 | Append sublauncher **last** inside `launchersweb.NewLauncher(...)`: `console.NewLauncher(console.WithBranding(...))` — see **Branding** below |
 | 3 | Add `agui`, `scheduler`, `-app_name=<adkAppName>`, and `console` to launcher CLI args in Dockerfile and Cloud Run / deployment config (see **Deployment: launcher CLI args** below) |
@@ -262,7 +277,8 @@ go run . web -port 8080 scheduler -app_name=REPLACE_WITH_ADK_APP_NAME agui conso
 ## Verification
 
 - [ ] `go build ./...` passes
-- [ ] Console sublauncher is inside `launchersweb.NewLauncher(...)`, registered **last**
+- [ ] Console sublauncher is inside `launchersweb.NewLauncher(...)` from `go.alis.build/adk/launchers/web`, registered **last**
+- [ ] No `google.golang.org/adk/cmd/launcher/web` import when console or other Alis sublaunchers are wired
 - [ ] Dockerfile CMD and Cloud Run args include `agui`, `scheduler`, `-app_name=<adkAppName>`, and `console` (last)
 - [ ] `ALIS_OS_PROJECT` and `IDENTITY_SERVICE_URL` are set on the deployment target
 - [ ] Agent starts without launcher registration errors
@@ -271,6 +287,7 @@ go run . web -port 8080 scheduler -app_name=REPLACE_WITH_ADK_APP_NAME agui conso
 
 ## Pitfalls
 
+- Mixing `google.golang.org/adk/cmd/launcher/web` with Alis `console`, `webagui`, `webscheduler`, or other `go.alis.build/adk/launchers/*` sublaunchers — migrate web host first
 - Refactoring existing launcher wiring to match skill templates without being asked — discover existing `launchersweb.NewLauncher` call and extend it
 - Using `google.golang.org/adk/cmd/launcher/console` instead of `go.alis.build/adk/launchers/console` — different launcher, different integration.
 - Adding console outside `launchersweb.NewLauncher` — it must be a **sibling** sublauncher with `webui`, `webapi`, `webagui`, etc.

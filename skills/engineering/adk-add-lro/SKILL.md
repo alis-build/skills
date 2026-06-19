@@ -87,6 +87,18 @@ agent entrypoint      MustInitLRO + weblro sublauncher
 
 `lroServiceID` in Go must match `focus_neuron_id` from the resolve script. `lroresume.DefaultAppName` must match `llmagent.Config.Name`.
 
+## Web launcher stack
+
+Before wiring `weblro`, ensure the entrypoint uses the Alis web host — not stock ADK `google.golang.org/adk/cmd/launcher/web`.
+
+| | |
+|-|-|
+| **Contract** | When wiring `go.alis.build/adk/launchers/lro`, the web host must import `go.alis.build/adk/launchers/web`. LRO resume via `POST /api/run` requires the stock `api` sublauncher (`google.golang.org/adk/cmd/launcher/web/api`) inside the Alis web host. Do not use a google web host with Alis `weblro`. `google.golang.org/adk/cmd/launcher/universal` stays unchanged. |
+| **Discovery signals** | `google.golang.org/adk/cmd/launcher/web`, `webapi.NewLauncher`, `weblro.NewLauncher`, existing launcher import block |
+| **Wire points** | Entrypoint import block and `universal.NewLauncher(web.NewLauncher(...))` call |
+
+**Action:** If the entrypoint uses `google.golang.org/adk/cmd/launcher/web` as the web host, replace it with `go.alis.build/adk/launchers/web` before adding `weblro`. Keep stock `api` on `google.golang.org/adk/cmd/launcher/web/api` for `/api/run` resume. Other stock sublaunchers (webui, a2a, agentengine) without Alis equivalents may keep their google imports inside the Alis web host.
+
 ## Phase A — Bootstrap LRO (one-time)
 
 Read and follow **`references/bootstrap-lro.md`**.
@@ -96,7 +108,7 @@ Summary:
 1. Add **`references/infra-lro.md`** module under `infra/`.
 2. Ensure `tools.proto` imports `google/longrunning/operations.proto`.
 3. Ask user to **run a define on the package** or **neuron** -> **stop** -> ask **install required dependencies**.
-4. Merge LRO helpers into tools package, add LRO init, copy lroresume, wire entrypoint + `weblro`.
+4. Merge LRO helpers into tools package, add LRO init, copy lroresume, migrate web host if needed, wire entrypoint + `weblro`.
 
 ## Phase B — Add an LRO tool
 
@@ -147,14 +159,19 @@ Add other sublaunchers (`webui`, `agui`, `scheduler`, etc.) only if the agent us
 - [ ] User ran define on the package or neuron
 - [ ] User installed LRO dependencies (`go.alis.build/lro/v2`, `go.alis.build/adk/launchers`, etc.)
 - [ ] `lroServiceID` matches `focus_neuron_id` from resolve script (or runtime context)
-- [ ] Reasoning engine `deployment_spec` has LRO env vars (`references/infra-lro.md`)
+- [ ] LRO application env vars in **both** `cloudrun.tf` and `agent.tf` `deployment_spec` (`references/infra-lro.md`)
+- [ ] `GOOGLE_CLOUD_*` vars on Cloud Run only — not in `deployment_spec`
 - [ ] Each LRO tool has unique `AddResumableHandler` path
+- [ ] `weblro.NewLauncher` inside `web.NewLauncher(...)` from `go.alis.build/adk/launchers/web`
+- [ ] No `google.golang.org/adk/cmd/launcher/web` import when `weblro` is wired
+- [ ] `api` sublauncher present for `/api/run` resume (`google.golang.org/adk/cmd/launcher/web/api`)
 - [ ] Dockerfile CMD and Cloud Run args include `lro` (and `api` for resume)
 - [ ] `go build ./...` passes
 - [ ] `ResumeAfterOperation` called when ADK chat should continue after completion
 
 ## Pitfalls
 
+- Mixing `google.golang.org/adk/cmd/launcher/web` with Alis `weblro` — migrate web host to `go.alis.build/adk/launchers/web` first
 - Creating new LRO packages without discovering existing ones — search for `InitLRO`, `NewLROTool`, `weblro` before creating
 - Refactoring the user's layout to match skill templates without being asked
 - Editing protos or code outside the user's current workspace — **`references/workspace-lro.md`**
@@ -164,7 +181,8 @@ Add other sublaunchers (`webui`, `agui`, `scheduler`, etc.) only if the agent us
 - Duplicate resume paths across LRO tools
 - Using `NewTool` instead of `NewLROTool` for Operation-returning RPCs
 - Forgetting `ResumeAfterOperation` when the web session should get the final function response
-- Missing LRO env vars on `google_vertex_ai_reasoning_engine` `deployment_spec` — `lro.NewFromEnv` fails at runtime on Agent Engine
+- Missing LRO env vars on only one of `cloudrun.tf` or `agent.tf` `deployment_spec` — same image, both runtimes need application env vars
+- `GOOGLE_CLOUD_*` vars added to `deployment_spec` — Reasoning Engine injects these automatically
 - Missing `lro` in Dockerfile CMD or Cloud Run args — the sublauncher is registered in Go but won't activate without the CLI arg
 - Implementing sync tools here — use **add-tool**
 
@@ -188,3 +206,4 @@ Add other sublaunchers (`webui`, `agui`, `scheduler`, etc.) only if the agent us
 | `references/templates/lroresume/` | Conversation resume package |
 | `references/templates/infra/` | LRO Terraform module |
 | `references/templates/infra/agent.tf.deployment_spec-lro-envs.example` | Agent Engine LRO env vars |
+| `references/templates/infra/cloudrun-args.tf.snippet.example` | Cloud Run args + LRO env vars |

@@ -1,5 +1,11 @@
 // Wire into agent main.go — add console sublauncher to the existing web launcher stack.
 //
+// If entrypoint currently imports google.golang.org/adk/cmd/launcher/web as the web host,
+// replace with go.alis.build/adk/launchers/web before adding console. Do not use google web host
+// with Alis sublaunchers. Stock ADK sublaunchers without Alis equivalents (api, webui, a2a,
+// agentengine) keep their google.golang.org/adk/cmd/launcher/* imports inside the Alis web host.
+// google.golang.org/adk/cmd/launcher/universal stays unchanged.
+//
 // Only the import and sublauncher marked REQUIRED are needed for console.
 // Register console LAST so its GET / catch-all does not shadow agui, scheduler, or other routes.
 // Other sublaunchers (webui, api, lro, agui, scheduler, agentengine) are independent —

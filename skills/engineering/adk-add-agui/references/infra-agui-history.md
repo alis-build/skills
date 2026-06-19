@@ -57,22 +57,48 @@ UserThreadStatesTable = tablePrefix + "_UserThreadStates"
 
 The history module has no Cloud Run dependency — it only provisions Spanner tables. It typically `depends_on = [google_project_service.environment]` like other infra modules.
 
-## Deployment environment variables
+## Dual runtime: same agent image
 
-Set these on the agent Cloud Run service (or equivalent deployment target):
+The agent binary runs as **the same Docker image** on:
+
+- `google_cloud_run_v2_service` (agent service) — sublaunchers via `command` / `args`
+- `google_vertex_ai_reasoning_engine` → `spec.deployment_spec` — ADK via `agent_framework`; no sublauncher CLI args
+
+**Contract:** every **application** env var the running process needs must appear in **both** places whenever you add or change env config. Keep names and values identical.
+
+**Platform-injected on Reasoning Engine only (do not add to `deployment_spec`):**
+
+- `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION`, `GOOGLE_CLOUD_AGENT_ENGINE_ID` — Vertex AI / Agent Engine injects these automatically. These are the **only** auto-injected env vars.
+
+**Cloud Run only (set in `cloudrun.tf`, not mirrored to `deployment_spec`):**
+
+- The same three `GOOGLE_CLOUD_*` vars — Cloud Run does not auto-inject; set `GOOGLE_CLOUD_PROJECT = var.ALIS_PROJECT_NR`, `GOOGLE_CLOUD_LOCATION = var.ALIS_REGION`, `GOOGLE_CLOUD_AGENT_ENGINE_ID = google_vertex_ai_reasoning_engine.reasoning_engine.id`
+- CLI `args` / Dockerfile CMD — Agent Engine does not use sublauncher args
+
+**Both runtimes (mirror in the same change):**
+
+- All application env vars including `ALIS_PROJECT_NR`, Spanner vars, service URLs, and any capability-specific vars from this skill
+
+When this skill adds env vars, add matching `env` blocks to **both** `cloudrun.tf` (agent container) and `agent.tf` (`deployment_spec`) in the same change — except the three `GOOGLE_CLOUD_*` vars, which belong only in `cloudrun.tf`.
+
+## Application env vars (both runtimes)
 
 | Variable | Purpose |
 |----------|---------|
 | `ALIS_OS_PROJECT` | GCP project; used in Spanner table prefix |
+| `ALIS_PROJECT_NR` | GCP project number |
 | `ALIS_MANAGED_SPANNER_PROJECT` | Spanner host project |
 | `ALIS_MANAGED_SPANNER_INSTANCE` | Spanner instance |
 | `ALIS_MANAGED_SPANNER_DB` | Spanner database |
 | `IDENTITY_SERVICE_URL` | IAM Users service — mux auth on `/agui/*` routes |
 | `AGENT_SERVICE_URL` | Agent service URL (required on agent deployment) |
 
-Template: **`templates/infra/cloudrun-args.tf.snippet.example`**
+Templates:
 
-When **add-scheduler** is also wired, add scheduler env vars (`ALIS_REGION`, etc.) per **`add-scheduler`** → `references/infra-scheduler.md`.
+- Cloud Run: **`templates/infra/cloudrun-args.tf.snippet.example`**
+- Agent Engine `deployment_spec`: **`templates/infra/agent.tf.deployment_spec-envs.example`**
+
+When **add-scheduler** is also wired, add scheduler env vars (`ALIS_REGION`, etc.) per **add-scheduler**.
 
 ### Local development
 
@@ -105,7 +131,8 @@ The agent does **not** run `terraform apply` or deploy commands. After editing i
 - Spanner tables `{prefix}_Threads` and `{prefix}_UserThreadStates` exist.
 - `info.NeuronId` in Go matches `local.neuron` / module `NEURON`.
 - Table names in Go match Terraform naming convention.
-- Deployment includes Spanner, `IDENTITY_SERVICE_URL`, and `AGENT_SERVICE_URL` env vars.
+- Application env vars (`ALIS_PROJECT_NR`, Spanner, `IDENTITY_SERVICE_URL`, `AGENT_SERVICE_URL`) present in **both** `cloudrun.tf` (agent container) and `agent.tf` (`deployment_spec`).
+- `GOOGLE_CLOUD_*` vars set on Cloud Run only — not in `deployment_spec` (Reasoning Engine injects them).
 - Dockerfile CMD and Cloud Run args both include `agui` and match each other.
 - Proto imports present in define; user ran define.
 - `WithThreadService` + `WithGRPCRegistrar` wired; agent starts without history initialization errors.

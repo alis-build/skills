@@ -98,6 +98,17 @@ This skill introduces three capabilities. For each: discover existing → extend
 | **Wire points** | Called in `main.go` before launcher; `Service` passed to `webscheduler.NewLauncher` |
 | **Greenfield default** | `internal/scheduler/scheduler.go` — see `references/templates/scheduler-service-bootstrap.go.example` |
 
+### Capability: Alis web launcher stack
+
+| | |
+|-|-|
+| **Contract** | When wiring any `go.alis.build/adk/launchers/*` sublauncher, the web host must import `go.alis.build/adk/launchers/web` — not `google.golang.org/adk/cmd/launcher/web`. Alis sublaunchers (lro, agui, scheduler, console) use `go.alis.build/adk/launchers/*`. Stock ADK sublaunchers without Alis equivalents (api, webui, a2a, agentengine) keep `google.golang.org/adk/cmd/launcher/*` imports as children inside the Alis web host. Do not use a google web host with Alis sublaunchers. `google.golang.org/adk/cmd/launcher/universal` stays unchanged. |
+| **Discovery signals** | `google.golang.org/adk/cmd/launcher/web`, `google.golang.org/adk/cmd/launcher/webui`, `webapi`, `weba2a`, `webagentengine` |
+| **Wire points** | Entrypoint import block and `universal.NewLauncher(web.NewLauncher(...))` call |
+| **Greenfield default** | See `references/templates/scheduler-launcher-wiring.go.example` |
+
+**Action:** If the entrypoint uses `google.golang.org/adk/cmd/launcher/web` as the web host, replace it with `go.alis.build/adk/launchers/web` before adding `webscheduler`. Migrate any existing Alis sublaunchers to `go.alis.build/adk/launchers/*`. Stock ADK sublaunchers (webui, api, a2a, agentengine) without Alis equivalents may keep their google imports inside the Alis web host. API surface is similar; Alis web adds mux/auth and other platform behavior. Keep existing sublauncher call order.
+
 ### Capability: Scheduler launcher wiring
 
 | | |
@@ -114,13 +125,14 @@ This skill introduces three capabilities. For each: discover existing → extend
 | 0 | **Discover** — search the build module for existing central identity, scheduler service, and scheduler wiring using discovery signals above |
 | 1 | **Central identity** — ensure one source for `AppName` + `NeuronId` exists (extend existing or create from template) |
 | 2 | **Scheduler service** — ensure capability exists (extend existing or create from template); must use central `NeuronId` |
-| 3 | **Host gRPC** — ensure `grpc.Server` + `schedulerservice.UnaryServerInterceptor()` + `mux.HandleGRPC(grpcServer)` exists (shared with add-agui when both apply) |
-| 4 | **Scheduler launcher** — wire `webscheduler.NewLauncher(appName, service, WithGRPCRegistrar(...))` inside `web.NewLauncher(...)` |
-| 5 | **Proto imports** — add orphan imports to define proto (common protobundle); ask user to **run define** |
-| 6 | **Infra** — ensure `alis.a2a.extension.scheduler.v1` Terraform module + Cloud Tasks queue exist — see **`references/infra-scheduler.md`** |
-| 7 | **Deployment** — add env vars and `scheduler` + `-app_name=<AppName>` to CLI args — Dockerfile CMD **must match** Cloud Run args |
-| 8 | **Dependencies** — ask user to install/upgrade if needed |
-| 9 | **Verify** — `go build ./...` |
+| 3 | **Web launcher stack** — if entrypoint imports `google.golang.org/adk/cmd/launcher/web`, migrate web host to `go.alis.build/adk/launchers/web` before adding `webscheduler` |
+| 4 | **Host gRPC** — ensure `grpc.Server` + `schedulerservice.UnaryServerInterceptor()` + `mux.HandleGRPC(grpcServer)` exists (shared with add-agui when both apply) |
+| 5 | **Scheduler launcher** — wire `webscheduler.NewLauncher(appName, service, WithGRPCRegistrar(...))` inside `web.NewLauncher(...)` |
+| 6 | **Proto imports** — add orphan imports to define proto (common protobundle); ask user to **run define** |
+| 7 | **Infra** — ensure `alis.a2a.extension.scheduler.v1` Terraform module + Cloud Tasks queue exist — see **`references/infra-scheduler.md`** |
+| 8 | **Deployment** — add env vars and `scheduler` + `-app_name=<AppName>` to CLI args — Dockerfile CMD **must match** Cloud Run args |
+| 9 | **Dependencies** — ask user to install/upgrade if needed |
+| 10 | **Verify** — `go build ./...` |
 
 ## Central identity
 
@@ -190,15 +202,18 @@ args = ["web", "-port", "8080", "agui", "scheduler", "-app_name=my.neuron.v1"]
 - [ ] Scheduler service exists; uses central `NeuronId` for queue and table prefix; exports `Service` + `MustInitScheduler`
 - [ ] `scheduler.MustInitScheduler(ctx)` called before launcher
 - [ ] gRPC server with `schedulerservice.UnaryServerInterceptor()` + `mux.HandleGRPC`
-- [ ] `webscheduler.NewLauncher(appName, ..., WithGRPCRegistrar(grpcServer))` — **WithGRPCRegistrar required**
+- [ ] `webscheduler.NewLauncher(appName, ..., WithGRPCRegistrar(grpcServer))` inside `web.NewLauncher(...)` from `go.alis.build/adk/launchers/web` — **WithGRPCRegistrar required**
+- [ ] No `google.golang.org/adk/cmd/launcher/web` import when `webscheduler` is wired
 - [ ] Cloud Tasks queue `{NeuronId}-a2a-scheduler` exists
 - [ ] Proto imports present; user ran define
-- [ ] Scheduler env vars on deployment
+- [ ] Application env vars (`ALIS_OS_PROJECT`, `ALIS_REGION`, `ALIS_PROJECT_NR`, Spanner, `AGENT_SERVICE_URL`) in **both** `cloudrun.tf` and `agent.tf` `deployment_spec`
+- [ ] `GOOGLE_CLOUD_*` vars on Cloud Run only — not in `deployment_spec`
 - [ ] Dockerfile CMD and Cloud Run args include `scheduler` + `-app_name=<AppName>` and **match**
 - [ ] `go build ./...` passes
 
 ## Pitfalls
 
+- Mixing `google.golang.org/adk/cmd/launcher/web` with Alis `webscheduler` or other `go.alis.build/adk/launchers/*` sublaunchers — migrate web host first
 - Creating new packages without discovering existing ones — always search first
 - Refactoring the user's layout to match skill templates without being asked
 - Declaring `serviceID` in scheduler code instead of importing from central identity
@@ -209,6 +224,8 @@ args = ["web", "-port", "8080", "agui", "scheduler", "-app_name=my.neuron.v1"]
 - `local.neuron` in infra does not match central `NeuronId`
 - Missing `-app_name` in deployment args
 - Skipping proto imports or Terraform module
+- Application env vars added to only one of `cloudrun.tf` or `agent.tf` — same image, both runtimes need them
+- `GOOGLE_CLOUD_*` vars added to `deployment_spec` — Reasoning Engine injects these automatically
 
 ## References & templates
 
@@ -218,6 +235,7 @@ args = ["web", "-port", "8080", "agui", "scheduler", "-app_name=my.neuron.v1"]
 | `references/templates/scheduler-service-bootstrap.go.example` | Scheduler service with central `NeuronId` |
 | `references/templates/scheduler-launcher-wiring.go.example` | Entrypoint + shared gRPC |
 | `references/templates/infra/scheduler-module.tf.example` | Terraform module |
-| `references/templates/infra/cloudrun-args.tf.snippet.example` | Cloud Run args + `-app_name` |
+| `references/templates/infra/cloudrun-args.tf.snippet.example` | Cloud Run args + env vars |
+| `references/templates/infra/agent.tf.deployment_spec-envs.example` | Agent Engine `deployment_spec` env vars |
 | `references/workspace-scheduler.md` | Path discovery + workspace rules |
 | `references/infra-scheduler.md` | Spanner + Cloud Tasks + deployment infra |

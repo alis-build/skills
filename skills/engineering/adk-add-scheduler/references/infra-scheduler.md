@@ -54,44 +54,50 @@ The service account running the agent needs:
 - **Spanner database user** — to read/write schedule state.
 - **Cloud Run invoker** (or equivalent) — so Cloud Tasks can deliver scheduled invocations to the agent service.
 
-## Deployment environment variables
+## Dual runtime: same agent image
 
-The scheduler reads configuration from the process environment at startup. Set these on whatever runs the agent:
+The agent binary runs as **the same Docker image** on:
 
-### Agent Engine (Vertex AI)
+- `google_cloud_run_v2_service` (agent service) — sublaunchers via `command` / `args`
+- `google_vertex_ai_reasoning_engine` → `spec.deployment_spec` — ADK via `agent_framework`; no sublauncher CLI args
 
-Add `env` blocks to `google_vertex_ai_reasoning_engine` → `spec.deployment_spec`:
+**Contract:** every **application** env var the running process needs must appear in **both** places whenever you add or change env config. Keep names and values identical.
 
-```hcl
-      env {
-        name  = "ALIS_OS_PROJECT"
-        value = var.project
-      }
-      env {
-        name  = "ALIS_REGION"
-        value = var.region
-      }
-      env {
-        name  = "ALIS_MANAGED_SPANNER_PROJECT"
-        value = var.spanner_project
-      }
-      env {
-        name  = "ALIS_MANAGED_SPANNER_INSTANCE"
-        value = var.spanner_instance
-      }
-      env {
-        name  = "ALIS_MANAGED_SPANNER_DB"
-        value = var.spanner_database
-      }
-      env {
-        name  = "AGENT_SERVICE_URL"
-        value = local.agent_service_url
-      }
-```
+**Platform-injected on Reasoning Engine only (do not add to `deployment_spec`):**
 
-### Cloud Run
+- `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION`, `GOOGLE_CLOUD_AGENT_ENGINE_ID` — Vertex AI / Agent Engine injects these automatically. These are the **only** auto-injected env vars.
 
-Mirror the same env vars on `google_cloud_run_v2_service` if the agent also runs scheduler handlers there.
+**Cloud Run only (set in `cloudrun.tf`, not mirrored to `deployment_spec`):**
+
+- The same three `GOOGLE_CLOUD_*` vars — Cloud Run does not auto-inject; set `GOOGLE_CLOUD_PROJECT = var.ALIS_PROJECT_NR`, `GOOGLE_CLOUD_LOCATION = var.ALIS_REGION`, `GOOGLE_CLOUD_AGENT_ENGINE_ID = google_vertex_ai_reasoning_engine.reasoning_engine.id`
+- CLI `args` / Dockerfile CMD — Agent Engine does not use sublauncher args
+
+**Both runtimes (mirror in the same change):**
+
+- All application env vars including `ALIS_PROJECT_NR`, Spanner vars, service URLs, and any capability-specific vars from this skill
+
+When this skill adds env vars, add matching `env` blocks to **both** `cloudrun.tf` (agent container) and `agent.tf` (`deployment_spec`) in the same change — except the three `GOOGLE_CLOUD_*` vars, which belong only in `cloudrun.tf`.
+
+## Application env vars (both runtimes)
+
+The scheduler reads configuration from the process environment at startup:
+
+| Variable | Purpose |
+|----------|---------|
+| `ALIS_OS_PROJECT` | GCP project |
+| `ALIS_REGION` | GCP region |
+| `ALIS_PROJECT_NR` | GCP project number |
+| `ALIS_MANAGED_SPANNER_PROJECT` | Spanner host project |
+| `ALIS_MANAGED_SPANNER_INSTANCE` | Spanner instance |
+| `ALIS_MANAGED_SPANNER_DB` | Spanner database |
+| `AGENT_SERVICE_URL` | Cloud Run agent URL — Cloud Tasks delivers scheduled invocations here |
+
+Templates:
+
+- Cloud Run: **`templates/infra/cloudrun-args.tf.snippet.example`**
+- Agent Engine `deployment_spec`: **`templates/infra/agent.tf.deployment_spec-envs.example`**
+
+**`AGENT_SERVICE_URL`** — must point at the **Cloud Run** agent service URL. The scheduler Terraform module passes `AGENT_SERVICE_NAME = google_cloud_run_v2_service.agent.name` so Cloud Tasks invokes the Cloud Run service, not Agent Engine.
 
 ### Local development
 
@@ -135,6 +141,7 @@ The agent does **not** run `terraform apply` or deploy commands. After editing i
 - Queue exists: `{NeuronId}-a2a-scheduler` in the agent region.
 - Spanner table `{project}_{NeuronId}_Crons` exists.
 - `info.NeuronId` in Go matches `local.neuron` in infra.
-- Deployment target includes all six scheduler env vars.
+- Application env vars (`ALIS_OS_PROJECT`, `ALIS_REGION`, `ALIS_PROJECT_NR`, Spanner, `AGENT_SERVICE_URL`) present in **both** `cloudrun.tf` (agent container) and `agent.tf` (`deployment_spec`).
+- `GOOGLE_CLOUD_*` vars set on Cloud Run only — not in `deployment_spec` (Reasoning Engine injects them).
 - Dockerfile CMD and Cloud Run args include `scheduler` and `-app_name=<info.AppName>` and match each other.
 - Agent starts without `env.MustGet` panics for scheduler variables.

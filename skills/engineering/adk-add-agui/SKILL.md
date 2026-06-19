@@ -130,6 +130,17 @@ This skill introduces three capabilities. For each: discover existing → extend
 | **Wire points**        | `webagui.WithThreadService(...)` in the launcher stack                                                                                                                                                                                                                                    |
 | **Greenfield default** | `internal/agui/history/history.go` — see `references/templates/thread-service-bootstrap.go.example`                                                                                                                                                                                       |
 
+### Capability: Alis web launcher stack
+
+| | |
+|-|-|
+| **Contract** | When wiring any `go.alis.build/adk/launchers/*` sublauncher, the web host must import `go.alis.build/adk/launchers/web` — not `google.golang.org/adk/cmd/launcher/web`. Alis sublaunchers (lro, agui, scheduler, console) use `go.alis.build/adk/launchers/*`. Stock ADK sublaunchers without Alis equivalents (api, webui, a2a, agentengine) keep `google.golang.org/adk/cmd/launcher/*` imports as children inside the Alis web host. Do not use a google web host with Alis sublaunchers. `google.golang.org/adk/cmd/launcher/universal` stays unchanged. |
+| **Discovery signals** | `google.golang.org/adk/cmd/launcher/web`, `google.golang.org/adk/cmd/launcher/webui`, `webapi`, `weba2a`, `webagentengine` |
+| **Wire points** | Entrypoint import block and `universal.NewLauncher(web.NewLauncher(...))` call |
+| **Greenfield default** | See `references/templates/agui-launcher-wiring.go.example` |
+
+**Action:** If the entrypoint uses `google.golang.org/adk/cmd/launcher/web` as the web host, replace it with `go.alis.build/adk/launchers/web` before adding `webagui`. Migrate any existing Alis sublaunchers to `go.alis.build/adk/launchers/*`. Stock ADK sublaunchers (webui, api, a2a, agentengine) without Alis equivalents may keep their google imports inside the Alis web host. API surface is similar; Alis web adds mux/auth and other platform behavior. Keep existing sublauncher call order.
+
 ### Capability: AG-UI launcher wiring
 
 |                        |                                                                                                                                                                                                                 |
@@ -146,15 +157,16 @@ This skill introduces three capabilities. For each: discover existing → extend
 | 0   | **Discover** — search the build module for existing central identity, thread history service, and AG-UI wiring using discovery signals above                                                             |
 | 1   | **Central identity** — ensure one source for `AppName` + `NeuronId` exists (extend existing or create from template)                                                                                     |
 | 2   | **Thread history service** — ensure capability exists (extend existing or create from template); must use central `NeuronId`                                                                             |
-| 3   | **Host gRPC** — ensure `grpc.Server` + `mux.HandleGRPC(grpcServer)` exists (shared with scheduler when both skills apply)                                                                                |
-| 4   | **AG-UI launcher** — wire `webagui.NewLauncher(appName, WithThreadService(...), WithGRPCRegistrar(...))` inside `web.NewLauncher(...)` — add `WithCORS` only when user needs cross-origin browser client |
-| 5   | **Proto imports** — add orphan imports to define proto (common protobundle); ask user to **run define**                                                                                                  |
-| 6   | **Infra** — ensure `alis.agui.history.v1` Terraform module exists in `infra/modules/` and is wired in `main.tf` — see **`references/infra-agui-history.md`**                                             |
-| 7   | **Deployment** — add env vars (`ALIS_MANAGED_SPANNER_*`, `ALIS_OS_PROJECT`, `IDENTITY_SERVICE_URL`, `AGENT_SERVICE_URL`) and `agui` CLI arg — Dockerfile CMD **must match** Cloud Run args               |
-| 8   | **Dependencies** — ask user to install/upgrade if needed                                                                                                                                                 |
-| 9   | **Verify** — `go build ./...` and run locally                                                                                                                                                            |
-| 10  | **Browser UI** — if needed, ask whether they want **add-console**                                                                                                                                        |
-| 11  | **Orientation** — offer `references/request-flow.md` when relevant                                                                                                                                       |
+| 3   | **Web launcher stack** — if entrypoint imports `google.golang.org/adk/cmd/launcher/web`, migrate web host to `go.alis.build/adk/launchers/web` before adding `webagui`          |
+| 4   | **Host gRPC** — ensure `grpc.Server` + `mux.HandleGRPC(grpcServer)` exists (shared with scheduler when both skills apply)                                                                                |
+| 5   | **AG-UI launcher** — wire `webagui.NewLauncher(appName, WithThreadService(...), WithGRPCRegistrar(...))` inside `web.NewLauncher(...)` — add `WithCORS` only when user needs cross-origin browser client |
+| 6   | **Proto imports** — add orphan imports to define proto (common protobundle); ask user to **run define**                                                                                                  |
+| 7   | **Infra** — ensure `alis.agui.history.v1` Terraform module exists in `infra/modules/` and is wired in `main.tf` — see **`references/infra-agui-history.md`**                                             |
+| 8   | **Deployment** — add env vars (`ALIS_MANAGED_SPANNER_*`, `ALIS_OS_PROJECT`, `IDENTITY_SERVICE_URL`, `AGENT_SERVICE_URL`) and `agui` CLI arg — Dockerfile CMD **must match** Cloud Run args               |
+| 9   | **Dependencies** — ask user to install/upgrade if needed                                                                                                                                                 |
+| 10  | **Verify** — `go build ./...` and run locally                                                                                                                                                            |
+| 11  | **Browser UI** — if needed, ask whether they want **add-console**                                                                                                                                        |
+| 12  | **Orientation** — offer `references/request-flow.md` when relevant                                                                                                                                       |
 
 ## Spanner metadata vs session messages
 
@@ -236,17 +248,20 @@ Agent-side AG-UI wiring is a prerequisite for browser chat. For console BFF, rev
 - [ ] One source for `AppName` + `NeuronId` — no duplicates introduced
 - [ ] Thread history service exists; uses central `NeuronId` for table prefix; exports `Service`
 - [ ] `go build ./...` passes
-- [ ] `webagui.NewLauncher(appName, WithThreadService, WithGRPCRegistrar)` inside `web.NewLauncher(...)`
+- [ ] `webagui.NewLauncher(appName, WithThreadService, WithGRPCRegistrar)` inside `web.NewLauncher(...)` from `go.alis.build/adk/launchers/web`
+- [ ] No `google.golang.org/adk/cmd/launcher/web` import when `webagui` is wired
 - [ ] Host `grpc.Server` registered with `mux.HandleGRPC`
 - [ ] Proto imports in define; user ran define
 - [ ] `infra/modules/alis.agui.history.v1` present; module wired in `infra/main.tf`
 - [ ] `local.neuron` / `NEURON` matches central `NeuronId`
-- [ ] Spanner, `IDENTITY_SERVICE_URL`, `AGENT_SERVICE_URL` env vars on deployment
+- [ ] Application env vars (`ALIS_PROJECT_NR`, Spanner, `IDENTITY_SERVICE_URL`, `AGENT_SERVICE_URL`) in **both** `cloudrun.tf` and `agent.tf` `deployment_spec`
+- [ ] `GOOGLE_CLOUD_*` vars on Cloud Run only — not in `deployment_spec`
 - [ ] Dockerfile CMD and Cloud Run args include `agui` and **match each other**
 - [ ] Agent starts without history initialization errors
 
 ## Pitfalls
 
+- Mixing `google.golang.org/adk/cmd/launcher/web` with Alis `webagui` or other `go.alis.build/adk/launchers/*` sublaunchers — migrate web host first
 - Creating new packages without discovering existing ones — always search first
 - Refactoring the user's layout to match skill templates without being asked
 - Passing hyphenated `focus_neuron_id` to `NewLauncher` — use `AppName` (periods)
@@ -258,6 +273,8 @@ Agent-side AG-UI wiring is a prerequisite for browser chat. For console BFF, rev
 - Confusing session messages with thread metadata — messages are session-backed; list/pin/unread need Spanner
 - Missing `agui` in CLI args — sublauncher won't activate without it
 - Missing `IDENTITY_SERVICE_URL` — mux auth on `/agui/*` fails at runtime
+- Application env vars added to only one of `cloudrun.tf` or `agent.tf` — same image, both runtimes need them
+- `GOOGLE_CLOUD_*` vars added to `deployment_spec` — Reasoning Engine injects these automatically
 
 ## References & templates
 
@@ -269,6 +286,7 @@ Agent-side AG-UI wiring is a prerequisite for browser chat. For console BFF, rev
 | `references/templates/infra/history-module.tf.example`        | Full `alis.agui.history.v1` Terraform module     |
 | `references/templates/infra/main.tf.snippet.example`          | Module block for `infra/main.tf`                 |
 | `references/templates/infra/cloudrun-args.tf.snippet.example` | Cloud Run args + env vars                        |
+| `references/templates/infra/agent.tf.deployment_spec-envs.example` | Agent Engine `deployment_spec` env vars     |
 | `references/infra-agui-history.md`                            | Define + Terraform + deployment guide            |
 | `references/launcher-options.md`                              | All `NewLauncher` options, trigger words, routes |
 | `references/request-flow.md`                                  | Auth → handler → SSE code walkthrough            |

@@ -1,12 +1,21 @@
 // Wire into agent main.go (imports + startup + launcher stack).
 //
+// If entrypoint currently imports google.golang.org/adk/cmd/launcher/web as the web host,
+// replace with go.alis.build/adk/launchers/web before adding weblro. Do not use google web host
+// with Alis sublaunchers. google.golang.org/adk/cmd/launcher/universal stays unchanged.
+// Stock ADK sublaunchers without Alis equivalents (api, webui, a2a, agentengine) keep their
+// google.golang.org/adk/cmd/launcher/* imports as children inside the Alis web host.
+//
 // Only the imports and sublaunchers marked REQUIRED are needed for LRO.
 // Other sublaunchers (webui, agui, a2a, scheduler, agentengine) are independent —
 // include them only if the agent uses them.
 
 import (
 	weblro "go.alis.build/adk/launchers/lro" // REQUIRED for LRO
-	// ... existing ADK launcher imports ...
+	web "go.alis.build/adk/launchers/web"    // REQUIRED — Alis web host (not google.../launcher/web)
+	webapi "google.golang.org/adk/cmd/launcher/web/api" // REQUIRED for LRO resume via /api/run
+	"google.golang.org/adk/cmd/launcher/universal"
+
 	"REPLACE_WITH_YOUR_MODULE/internal/tools"
 )
 
@@ -21,14 +30,14 @@ func main() {
 	tools.MustInitLRO(ctx, lroServiceID)
 
 	// Only include sublaunchers the agent actually uses.
-	// LRO requires: web + api (for /api/run resume) + lro.
+	// LRO requires: web (Alis host) + api (for /api/run resume) + lro.
 	// webui, agui, a2a, scheduler, agentengine are independent.
 	l := universal.NewLauncher(web.NewLauncher(
-		// webagentengine.NewLauncher(agentEngineID),  // only if using Agent Engine
-		// webui.NewLauncher(),                         // only if serving the ADK web UI
-		webapi.NewLauncher(),                           // REQUIRED for LRO resume via /api/run
-		// weba2a.NewLauncher(),                        // only if using A2A protocol
-		weblro.NewLauncher(                             // REQUIRED
+		// webagentengine.NewLauncher(agentEngineID),  // only if using Agent Engine (google import)
+		// webui.NewLauncher(),                         // only if serving the ADK web UI (google import)
+		webapi.NewLauncher(), // REQUIRED for LRO resume via /api/run
+		// weba2a.NewLauncher(),                        // only if using A2A protocol (google import)
+		weblro.NewLauncher( // REQUIRED
 			weblro.WithServiceID(lroServiceID),
 			weblro.WithLROClient(tools.LRO),
 		),

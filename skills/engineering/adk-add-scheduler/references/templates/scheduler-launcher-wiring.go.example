@@ -4,6 +4,12 @@
 //           webscheduler.NewLauncher(appName, service, WithGRPCRegistrar(grpcServer)) in web.NewLauncher.
 // Greenfield default path: main.go (or agent entrypoint)
 //
+// If entrypoint currently imports google.golang.org/adk/cmd/launcher/web as the web host,
+// replace with go.alis.build/adk/launchers/web before adding webscheduler. Do not use google web host
+// with Alis sublaunchers. Stock ADK sublaunchers without Alis equivalents (api, webui, a2a,
+// agentengine) keep their google.golang.org/adk/cmd/launcher/* imports inside the Alis web host.
+// google.golang.org/adk/cmd/launcher/universal stays unchanged.
+//
 // REQUIRED: central identity (AppName), scheduler service (Service + MustInitScheduler),
 // WithGRPCRegistrar on host gRPC server.
 // When add-agui is also wired, share the same grpcServer.

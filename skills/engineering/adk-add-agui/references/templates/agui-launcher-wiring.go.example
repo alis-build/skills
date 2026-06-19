@@ -3,6 +3,12 @@
 //           registered inside web.NewLauncher(...). Host grpc.Server registered with mux.HandleGRPC.
 // Greenfield default path: main.go (or agent entrypoint)
 //
+// If entrypoint currently imports google.golang.org/adk/cmd/launcher/web as the web host,
+// replace with go.alis.build/adk/launchers/web before adding webagui. Do not use google web host
+// with Alis sublaunchers. Stock ADK sublaunchers without Alis equivalents (api, webui, a2a,
+// agentengine) keep their google.golang.org/adk/cmd/launcher/* imports inside the Alis web host.
+// google.golang.org/adk/cmd/launcher/universal stays unchanged.
+//
 // REQUIRED: central identity (AppName), thread history service (Service),
 // WithThreadService + WithGRPCRegistrar on a shared host gRPC server.
 // Other sublaunchers (webui, api, lro, scheduler, agentengine) are independent.

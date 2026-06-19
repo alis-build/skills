@@ -15,7 +15,7 @@ Read **`workspace-lro.md`**, **`alis-workspace.md`**, and **`define-stubs.md`** 
 | # | Action | Template / doc |
 |---|--------|----------------|
 | 0 | Confirm `internal/tools`, `tools.proto`, entrypoint wired with `tools.MyTools()` — if missing, bootstrap tools first (add-tool skill) | — |
-| 1 | Provision LRO infra + reasoning-engine `deployment_spec` LRO envs | `references/infra-lro.md`, `templates/infra/` |
+| 1 | Provision LRO infra + LRO application env vars in **both** `agent.tf` (`deployment_spec`) and `cloudrun.tf` (agent container) | `references/infra-lro.md`, `templates/infra/` |
 | 2 | Add `import "google/longrunning/operations.proto"` to `tools.proto` if absent | — |
 | 3 | Ask user: **run a define on the package** `<package from tools.proto>` or **on the neuron** | `define-stubs.md` |
 | 4 | **Stop** — no `go.mod`, no Go yet | define-stubs |
@@ -24,7 +24,7 @@ Read **`workspace-lro.md`**, **`alis-workspace.md`**, and **`define-stubs.md`** 
 | 7 | Add `internal/tools/grpc.go` with `InitLRO` / `RegisterGRPC` | `templates/grpc.go.example` |
 | 8 | Copy `internal/lroresume/` package | `templates/lroresume/` |
 | 9 | Set `DefaultAppName` and `DefaultNeuron` in `lroresume/run_api.go` | workspace-lro.md |
-| 10 | Wire entrypoint: `lroServiceID`, `MustInitLRO`, `weblro.NewLauncher` | `templates/main-lro-wiring.go.example` |
+| 10 | Wire entrypoint: migrate web host to `go.alis.build/adk/launchers/web` if needed; `lroServiceID`, `MustInitLRO`, `weblro.NewLauncher` | `templates/main-lro-wiring.go.example` |
 | 11 | `go build ./...` | — |
 
 ## Dependencies (ask user to install after define)
@@ -47,7 +47,8 @@ Read **`workspace-lro.md`**, **`alis-workspace.md`**, and **`define-stubs.md`** 
 ## Verify bootstrap
 
 - [ ] Infra module added; neuron id documented for user deploy
-- [ ] `google_vertex_ai_reasoning_engine` `deployment_spec` has LRO env vars (`infra-lro.md`)
+- [ ] LRO application env vars in **both** `cloudrun.tf` and `agent.tf` `deployment_spec` (`infra-lro.md`)
+- [ ] `GOOGLE_CLOUD_*` vars on Cloud Run only — not in `deployment_spec`
 - [ ] `tools.MustInitLRO(ctx, lroServiceID)` before launcher execute
 - [ ] `weblro.NewLauncher(WithServiceID, WithLROClient(tools.LRO))` in launcher stack
 - [ ] `lroresume` defaults match app name and service id
