@@ -1,0 +1,105 @@
+# Infra snippets merged by InstallBlock(agentsui) into <neuron>/infra/
+#
+# Use this template to VERIFY the block install — do not hand-author unless the block
+# failed to merge and the user explicitly asks you to add missing resources.
+#
+# Image path suffix must match CodeBlock install location:
+#   <neuron>/console/  →  neurons/${local.neuron}/console:${var.ALIS_OS_NEURON_VERSION_COMMIT_SHA}
+#   neuron root        →  neurons/${local.neuron}:${var.ALIS_OS_NEURON_VERSION_COMMIT_SHA}
+
+# --- infra/cloudrun.tf (console service) ---
+
+resource "google_cloud_run_v2_service" "console" {
+  name     = "${local.neuron}-console"
+  location = var.ALIS_REGION
+
+  template {
+    scaling {
+      max_instance_count = 10
+    }
+    containers {
+      # Adjust image suffix to match install path (see header above).
+      image = "${var.ALIS_REGION}-docker.pkg.dev/${var.ALIS_OS_PRODUCT_PROJECT}/neurons/${local.neuron}/console:${var.ALIS_OS_NEURON_VERSION_COMMIT_SHA}"
+      ports {
+        name           = "http1"
+        container_port = 8080
+      }
+      env {
+        name  = "ALIS_OS_VERSION"
+        value = var.ALIS_OS_VERSION
+      }
+      env {
+        name  = "ALIS_OS_PROJECT"
+        value = var.ALIS_OS_PROJECT
+      }
+      env {
+        name  = "ALIS_REGION"
+        value = var.ALIS_REGION
+      }
+      env {
+        name  = "ALIS_PROJECT_NR"
+        value = var.ALIS_PROJECT_NR
+      }
+      env {
+        name  = "AGENT_SERVICE_URL"
+        value = local.agent_service_url
+      }
+      env {
+        name  = "IDENTITY_SERVICE_URL"
+        value = local.identity_service_url
+      }
+      resources {
+        limits = {
+          cpu    = "1000m"
+          memory = "1Gi"
+        }
+        cpu_idle = true
+      }
+    }
+    max_instance_request_concurrency = 250
+    timeout                          = "240s"
+    service_account                  = "alis-build@${var.ALIS_OS_PROJECT}.iam.gserviceaccount.com"
+  }
+
+  traffic {
+    type    = "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST"
+    percent = 100
+  }
+  deletion_protection = false
+  depends_on          = [google_project_service.environment]
+}
+
+resource "google_cloud_run_service_iam_member" "iam-auth-invoker" {
+  service  = google_cloud_run_v2_service.console.name
+  location = var.ALIS_REGION
+  role     = "roles/run.invoker"
+  member   = "allUsers"
+}
+
+# --- infra/loadbalancing.tf ---
+
+resource "google_compute_region_network_endpoint_group" "console" {
+  name                  = "${local.neuron}-console"
+  network_endpoint_type = "SERVERLESS"
+  region                = var.ALIS_REGION
+  cloud_run {
+    service = google_cloud_run_v2_service.console.name
+  }
+}
+
+resource "google_compute_backend_service" "console" {
+  name = "${local.neuron}-console"
+  backend {
+    balancing_mode = "UTILIZATION"
+    group          = google_compute_region_network_endpoint_group.console.id
+  }
+  load_balancing_scheme = "EXTERNAL_MANAGED"
+  protocol              = "HTTP"
+}
+
+# --- infra/variables.tf (locals — block may add if absent) ---
+
+# locals {
+#   identity_service_url = var.IDENTITY_SERVICE_URL != "" ? var.IDENTITY_SERVICE_URL : "https://users-v1-${var.ALIS_PROJECT_NR}.${var.ALIS_REGION}.run.app"
+#   agent_service_url    = var.AGENT_SERVICE_URL != "" ? var.AGENT_SERVICE_URL : "https://${local.neuron}-${var.ALIS_PROJECT_NR}.${var.ALIS_REGION}.run.app"
+# }

@@ -1,3 +1,6 @@
+// FALLBACK ONLY — bundled ADK console (single-container mode).
+// Default path is agentsui BFF via InstallBlock — see agent-bff-prerequisites.go.example.
+//
 // Wire into agent main.go — add console sublauncher to the existing web launcher stack.
 //
 // If entrypoint currently imports google.golang.org/adk/cmd/launcher/web as the web host,

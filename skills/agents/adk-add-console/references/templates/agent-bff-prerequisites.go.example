@@ -1,0 +1,61 @@
+// Agent launcher stack for agentsui BFF console (default path).
+//
+// The console SPA is served by a separate console/ BFF (InstallBlock agentsui).
+// Do NOT register console.NewLauncher here. Do NOT pass "console" in CLI args.
+//
+// Prerequisites on the agent:
+//   - add-agui: webagui.NewLauncher with WithThreadService + WithGRPCRegistrar
+//   - add-scheduler: webscheduler.NewLauncher with WithGRPCRegistrar
+//
+// Extend the existing launchersweb.NewLauncher call in place — do not refactor layout.
+
+import (
+	webagui "go.alis.build/adk/launchers/agui"
+	webscheduler "go.alis.build/adk/launchers/scheduler"
+	launchersweb "go.alis.build/adk/launchers/web"
+	"go.alis.build/iam/v3"
+	"go.alis.build/mux"
+	"google.golang.org/adk/cmd/launcher/universal"
+	// weba2a "google.golang.org/adk/cmd/launcher/web/a2a"
+	// webagentengine "google.golang.org/adk/cmd/launcher/web/agentengine"
+	// webapi "google.golang.org/adk/cmd/launcher/web/api"
+	// webui "google.golang.org/adk/cmd/launcher/web/webui"
+	"google.golang.org/grpc"
+)
+
+const adkAppName = "REPLACE_WITH_ADK_APP_NAME" // must match llmagent.Config.Name and -app_name CLI arg
+
+func main() {
+	ctx := context.Background()
+	// ... agent config, scheduler.MustInitScheduler(ctx), history.Service bootstrap ...
+
+	// gRPC server for browser gRPC-Web clients (ThreadService, SchedulerService).
+	// The console BFF proxies gRPC-Web to this server on the agent.
+	grpcServer := grpc.NewServer(
+		grpc.UnaryInterceptor(iam.UnaryInterceptor),
+		grpc.StreamInterceptor(iam.StreamInterceptor),
+	)
+	mux.HandleGRPC(grpcServer)
+
+	l := universal.NewLauncher(launchersweb.NewLauncher(
+		// webagentengine.NewLauncher(agentEngineID),  // only if using Agent Engine
+		// webui.NewLauncher(),
+		// webapi.NewLauncher(),
+		// weba2a.NewLauncher(),
+		webagui.NewLauncher(adkAppName,
+			webagui.WithThreadService(history.Service),
+			webagui.WithGRPCRegistrar(grpcServer),
+		),
+		webscheduler.NewLauncher(adkAppName, scheduler.Service,
+			webscheduler.WithGRPCRegistrar(grpcServer),
+		),
+		// NO console.NewLauncher — SPA is served by console/ BFF
+	))
+	// l.Execute(ctx, launcherConfig, os.Args[1:])
+}
+
+// Agent Dockerfile / Cloud Run args — omit "console":
+//   CMD ["/app/main", "web", "-port", "8080", "scheduler", "-app_name=REPLACE_WITH_ADK_APP_NAME", "agui"]
+//
+// Agent image: neurons/${local.neuron}/agent:${ALIS_OS_NEURON_VERSION_COMMIT_SHA}
+// Console image (separate): neurons/${local.neuron}/console:${ALIS_OS_NEURON_VERSION_COMMIT_SHA}

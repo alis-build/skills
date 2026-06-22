@@ -241,7 +241,7 @@ When **add-scheduler** is also wired, append `scheduler` and `-app_name=<AppName
 
 ## Browser UI (add-console)
 
-Agent-side AG-UI wiring is a prerequisite for browser chat. For console BFF, reverse-proxy of `/agui/*`, gRPC-Web `ThreadService` clients, or load balancer setup, use **add-console** after this skill completes.
+Agent-side AG-UI wiring is a prerequisite for browser chat. **add-console** defaults to `InstallBlock(agentsui)` — a separate Vue BFF that proxies `/agui/*` and gRPC-Web to the agent. For the bundled SPA sublauncher (`console.NewLauncher` in the agent binary) or load balancer setup, use **add-console** after this skill completes.
 
 ## Verification
 
