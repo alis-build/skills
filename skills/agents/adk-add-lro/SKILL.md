@@ -9,7 +9,7 @@ metadata:
   alis.context.version: "1"
   alis.context.requires: >-
     focus_neuron_id
-    workstations.build_repos workstations.define_repos
+    workstations
 ---
 
 # Add long-running (LRO) ADK tools
@@ -39,8 +39,8 @@ instructions by the Alis Build MCP `LoadSkill` handler. The handler reads
 | Value | Context field | If absent (after runtime context) |
 | ----- | ------------- | -------------------------------- |
 | Neuron / service id | `focus_neuron_id` | LRO service id for `InitLRO`, `weblro.WithServiceID`, and infra |
-| Neuron build root | `workstations.build_repos` | Go module with tools, entrypoint, and LRO handlers |
-| Neuron define tree | `workstations.define_repos` | Define package for LRO `tools.proto` RPCs |
+| Neuron build root | `workstations` | Use the focused workstation's `build_repos` entry: Go module with tools, entrypoint, and LRO handlers |
+| Neuron define tree | `workstations` | Use the focused workstation's `define_repos` entry: define package for LRO `tools.proto` RPCs |
 
 
 Then read **`references/workspace-lro.md`**, **`references/alis-workspace.md`**, and **`references/define-stubs.md`**. Follow **`references/alis-workspace.md`** resolution order (runtime context -> MCP -> neuron anchors) — never derive paths from another product or chat.

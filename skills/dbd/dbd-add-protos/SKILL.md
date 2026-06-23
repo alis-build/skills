@@ -12,7 +12,7 @@ metadata:
   alis.context.version: "1"
   # Context field paths this skill needs from the injected runtime context.
   alis.context.requires: >-
-    focus_package_id workstations.define_repos
+    focus_package_id workstations
 ---
 
 # Add protos
@@ -53,7 +53,7 @@ instructions by the Alis Build MCP `LoadSkill` handler. The handler reads
 | Value                  | Context field               | If absent, how to obtain it                                                                                                          |
 | ---------------------- | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | **Proto package**      | `focus_package_id`          | The proto package for the focused package, e.g. `aibake.ge.hello.v1`. This is the authoritative value for the `package` declaration — do not derive it from the path. If absent, derive from the define tree (segments after `define/`) or ask the user. |
-| **Neuron define tree** | `workstations.define_repos` | Default root `~/alis.build`, then `<root>/<landing-zone>/define/<org>/<product>/<service>/<version>`; confirm the folder with the user. |
+| **Neuron define tree** | `workstations` | Use the focused workstation's `define_repos` entry; otherwise default root `~/alis.build`, then `<root>/<landing-zone>/define/<org>/<product>/<service>/<version>`; confirm the folder with the user. |
 
 Use `focus_package_id` for the proto **`package`** declaration. The **file path** still comes from
 the define tree: `focus_package_id`'s dotted segments map to folders under `define/` (e.g.

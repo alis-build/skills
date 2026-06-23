@@ -9,7 +9,7 @@ description: >
 metadata:
   alis.context.version: "1"
   alis.context.requires: >-
-    organisation_id product_id focus_neuron_id workstations.build_repos
+    organisation_id product_id focus_neuron_id workstations
 ---
 
 # Add console (custom agentsui BFF)
@@ -52,7 +52,7 @@ instructions by the Alis Build MCP `LoadSkill` handler. The handler reads
 | Landing zone id | `organisation_id` | MCP `GetLandingZone`; needed for `InstallBlock` |
 | Product id | `product_id` | MCP `ViewProduct`; needed for `InstallBlock` |
 | Neuron / service id | `focus_neuron_id` | Neuron scope for console install and agent verification |
-| Neuron build root | `workstations.build_repos` | Parent of `infra/` and install target for `console/` |
+| Neuron build root | `workstations` | Use the focused workstation's `build_repos` entry: parent of `infra/` and install target for `console/` |
 
 
 Then read **`references/alis-workspace.md`** for path rules and discovery. Use `workstations.build_repos` for the neuron root.

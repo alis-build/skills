@@ -16,7 +16,7 @@ Follow **`alis-workspace.md`** discovery tier order:
 | Neuron id | `focus_neuron_id` from runtime context |
 | Go module | Nearest `go.mod` under `workstations.build_repos` |
 | `tools.proto` | Under `workstations.define_repos` |
-| Infra directory | `workstations.infra` from runtime context |
+| Infra directory | Derive from the runtime context build root as `<workstations.build_repos entry>/infra` |
 | Agent app name | `llmagent.Config.Name` → must match `lroresume.DefaultAppName` |
 
 `lroServiceID` in Go must match `focus_neuron_id` from the runtime context (same value for `InitLRO` and `weblro.WithServiceID`).

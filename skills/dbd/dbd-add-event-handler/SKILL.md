@@ -14,7 +14,7 @@ metadata:
   # Context field paths this skill needs from the injected runtime context.
   alis.context.requires: >-
     focus_neuron_id focus_package_id
-    workstations.build_repos workstations.define_repos
+    workstations
 ---
 
 # Add a Pub/Sub events handler
@@ -64,8 +64,8 @@ and do **not** scan folders or ask the user to confirm a value that was already 
 | ----- | ------------- | --------------------------- |
 | Neuron / service id (**hyphenated**) | `focus_neuron_id` | Drives the Cloud Run service name `{neuron-id}-events`, the image name, and the push audience/endpoint host. E.g. `my-service-v1`. If absent, ask the user — do **not** derive it from `focus_package_id`. |
 | Proto package (**dotted**) | `focus_package_id` | Drives the subscription-name prefix `{focus_package_id}.events_<EventType>` and the events module name. E.g. `alis.os.buildspecs.v1`. |
-| Neuron build root | `workstations.build_repos` | Parent of the neuron's `events/` folder and `infra/`. The `events/` sub-module and `infra/events.tf` are written here. |
-| Neuron define tree | `workstations.define_repos` | Used to discover which `*Event` message types exist to subscribe to (`<root>/<landing-zone>/define/<org>/<product>/<service>/<version>`). |
+| Neuron build root | `workstations` | Use the focused workstation's `build_repos` entry: parent of the neuron's `events/` folder and `infra/`. The `events/` sub-module and `infra/events.tf` are written here. |
+| Neuron define tree | `workstations` | Use the focused workstation's `define_repos` entry to discover which `*Event` message types exist to subscribe to (`<root>/<landing-zone>/define/<org>/<product>/<service>/<version>`). |
 
 `focus_neuron_id` is **hyphenated** (`my-service-v1`); `focus_package_id` is **dotted**
 (`alis.os.buildspecs.v1`). They are different values — use the hyphenated id for the Cloud Run

@@ -51,7 +51,7 @@ Derive Docker build paths from the filesystem (where each `Dockerfile` lives), n
 | Alis Build root | `workstations.root_directory` |
 | Neuron build root | `workstations.build_repos[]` |
 | Neuron define tree | `workstations.define_repos[]` |
-| Infra directory | `workstations.infra` |
+| Infra directory | Derive as `<workstations.build_repos[]>/infra` |
 | Playground | `workstations.playground` |
 
 ## Discovery tier order
@@ -67,7 +67,7 @@ Derive Docker build paths from the filesystem (where each `Dockerfile` lives), n
 | ---- | ----- |
 | **Neuron root** | `workstations.build_repos` from the runtime context |
 | **Neuron id** | `focus_neuron_id` from the runtime context |
-| **Infra** | `workstations.infra` from the runtime context |
+| **Infra** | Derive from the runtime context build root as `<workstations.build_repos entry>/infra` |
 | Go **module** | Nearest `go.mod` under the neuron root for the service you are editing |
 | Entrypoint | `main.go` (or project entrypoint) in the same module directory |
 | Proto **package** | `package` line in `tools.proto` under the neuron define tree (`workstations.define_repos`) |

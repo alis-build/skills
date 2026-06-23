@@ -10,7 +10,7 @@ metadata:
   alis.context.version: "1"
   # Context field paths this skill needs from the injected runtime context.
   alis.context.requires: >-
-    workstations.build_repos,
+    workstations,
     focus_package_id
 ---
 
@@ -55,7 +55,7 @@ decide which context fields to include; the block carries **only** those fields.
 
 | Value | Context field | If absent, how to obtain it |
 | ----- | ------------- | --------------------------- |
-| Neuron build root | `workstations.build_repos` | The existing Go service/neuron root containing `go.mod` and server/client startup code. Default to the current working directory if it looks like a neuron build folder; otherwise ask. |
+| Neuron build root | `workstations` | Use the focused workstation's `build_repos` entry for the existing Go service/neuron root containing `go.mod` and server/client startup code. Default to the current working directory if it looks like a neuron build folder; otherwise ask. |
 | Focus package id | `focus_package_id` | Derive from the focused neuron id by replacing hyphens with dots, for example `alis-os-skills-v1` -> `alis.os.skills.v1`; otherwise inspect the generated protobuf package. |
 
 ---

@@ -9,7 +9,7 @@ metadata:
   alis.context.version: "1"
   alis.context.requires: >-
     focus_neuron_id
-    workstations.build_repos workstations.define_repos
+    workstations
 ---
 
 # Add synchronous ADK tools
@@ -39,8 +39,8 @@ instructions by the Alis Build MCP `LoadSkill` handler. The handler reads
 | Value | Context field | If absent (after runtime context) |
 | ----- | ------------- | -------------------------------- |
 | Neuron / service id | `focus_neuron_id` | Neuron scope for `tools.proto` and handler wiring |
-| Neuron build root | `workstations.build_repos` | Go module with tools package and entrypoint |
-| Neuron define tree | `workstations.define_repos` | Define package containing `tools.proto` |
+| Neuron build root | `workstations` | Use the focused workstation's `build_repos` entry: Go module with tools package and entrypoint |
+| Neuron define tree | `workstations` | Use the focused workstation's `define_repos` entry: define package containing `tools.proto` |
 
 
 Then read **`references/workspace-tools.md`**, **`references/alis-workspace.md`**, and **`references/define-stubs.md`**. Follow **`references/alis-workspace.md`** resolution order (runtime context -> MCP -> neuron anchors) — never derive paths from another product or chat.

@@ -34,7 +34,7 @@ Landing zone (organisation) → product → neuron (deployable service). Build a
 | Alis Build root | `workstations.root_directory` |
 | Neuron build root | `workstations.build_repos[]` |
 | Neuron define tree | `workstations.define_repos[]` |
-| Infra directory | `workstations.infra` |
+| Infra directory | Derive as `<workstations.build_repos[]>/infra` |
 | Playground | `workstations.playground` |
 
 ## Discovery tier order
@@ -49,7 +49,7 @@ Landing zone (organisation) → product → neuron (deployable service). Build a
 1. **Neuron root** — `workstations.build_repos` from the runtime context.
 2. **Go module** — nearest `go.mod` under that root.
 3. **Identity** — search for existing central identity; if absent, `focus_neuron_id` → `NeuronId`, derive `AppName`.
-4. **Infra directory** — `workstations.infra` for Cloud Tasks queue and Spanner Terraform.
+4. **Infra directory** — derive from the neuron build root as `<workstations.build_repos entry>/infra` for Cloud Tasks queue and Spanner Terraform.
 
 ## Scheduler-specific checks
 

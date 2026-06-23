@@ -36,7 +36,7 @@ Landing zone (organisation) → product → neuron (deployable service). Build a
 | Alis Build root | `workstations.root_directory` |
 | Neuron build root | `workstations.build_repos[]` |
 | Neuron define tree | `workstations.define_repos[]` |
-| Infra directory | `workstations.infra` |
+| Infra directory | Derive as `<workstations.build_repos[]>/infra` |
 | Playground | `workstations.playground` |
 
 ## Discovery tier order
@@ -54,7 +54,7 @@ Landing zone (organisation) → product → neuron (deployable service). Build a
 
 3. **Identity** — `focus_neuron_id` from runtime context → `NeuronId`; derive `AppName` with `-` → `.`. Check for existing `internal/info` before creating.
 
-4. **Infra** — `workstations.infra` for Terraform (`alis.agui.history.v1` module).
+4. **Infra** — derive from the neuron build root as `<workstations.build_repos entry>/infra` for Terraform (`alis.agui.history.v1` module).
 
 5. **Define** — `workstations.define_repos` for `tools.proto` orphan imports. Follow **`SKILL.md`** → **Proto imports**.
 

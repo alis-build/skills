@@ -9,7 +9,7 @@ metadata:
   alis.context.version: "1"
   alis.context.requires: >-
     focus_neuron_id
-    workstations.build_repos workstations.define_repos workstations.infra
+    workstations
 ---
 
 # Add AG-UI launcher
@@ -39,9 +39,9 @@ instructions by the Alis Build MCP `LoadSkill` handler. The handler reads
 | Value               | Context field               | If absent (after runtime context) |
 | ------------------- | --------------------------- | -------------------------------------------------------------- |
 | Neuron / service id | `focus_neuron_id`           | Discover via runtime context or ask — used to derive `NeuronId` |
-| Neuron build root   | `workstations.build_repos`  | Parent of the neuron's `infra/` where `main.go` lives          |
-| Neuron define tree  | `workstations.define_repos` | Define package for Spanner proto imports                       |
-| Infra directory     | `workstations.infra`        | Terraform for `alis.agui.history.v1` module                    |
+| Neuron build root   | `workstations`              | Use the focused workstation's `build_repos` entry: parent of the neuron's `infra/` where `main.go` lives |
+| Neuron define tree  | `workstations`              | Use the focused workstation's `define_repos` entry: define package for Spanner proto imports |
+| Infra directory     | `workstations`              | Derive from the focused workstation's build root as `<build_repos entry>/infra`; `infra` is not a Context field |
 
 
 Then read **`references/alis-workspace.md`** for path rules and fallback discovery.

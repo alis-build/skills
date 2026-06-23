@@ -27,7 +27,7 @@ If multiple `go.mod` files exist under one neuron, ask which service is the targ
 | Alis Build root | `workstations.root_directory` |
 | Neuron build root | `workstations.build_repos[]` |
 | Neuron define tree | `workstations.define_repos[]` |
-| Infra directory | `workstations.infra` |
+| Infra directory | Derive as `<workstations.build_repos[]>/infra` |
 | Playground | `workstations.playground` |
 
 ## Discovery tier order

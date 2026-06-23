@@ -10,7 +10,7 @@ metadata:
   alis.context.version: "1"
   alis.context.requires: >-
     focus_neuron_id
-    workstations.build_repos workstations.define_repos workstations.infra
+    workstations
 ---
 
 # Add A2A scheduler launcher
@@ -40,8 +40,9 @@ instructions by the Alis Build MCP `LoadSkill` handler. The handler reads
 | Value | Context field | If absent (after runtime context) |
 | ----- | ------------- | -------------------------------- |
 | Neuron / service id | `focus_neuron_id` | Used to derive `NeuronId` |
-| Neuron build root | `workstations.build_repos` | Go module with scheduler and entrypoint |
-| Neuron define tree | `workstations.define_repos` | Define package for Spanner proto imports |
+| Neuron build root | `workstations` | Use the focused workstation's `build_repos` entry: Go module with scheduler and entrypoint |
+| Neuron define tree | `workstations` | Use the focused workstation's `define_repos` entry: define package for Spanner proto imports |
+| Infra directory | `workstations` | Derive from the focused workstation's build root as `<build_repos entry>/infra`; `infra` is not a Context field |
 
 
 Then read **`references/workspace-scheduler.md`** for path rules and central identity.

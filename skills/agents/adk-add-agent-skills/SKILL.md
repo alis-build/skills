@@ -8,7 +8,7 @@ description: >
 metadata:
   alis.context.version: "1"
   alis.context.requires: >-
-    focus_neuron_id workstations.build_repos
+    focus_neuron_id workstations
 ---
 
 # Add agent skills (skill toolset)
@@ -38,7 +38,7 @@ instructions by the Alis Build MCP `LoadSkill` handler. The handler reads
 | Value | Context field | If absent (after runtime context) |
 | ----- | ------------- | -------------------------------- |
 | Neuron / service id | `focus_neuron_id` | Neuron scope for `internal/skills` and entrypoint wiring |
-| Neuron build root | `workstations.build_repos` | Parent of `infra/` where the agent Go module and `main.go` live |
+| Neuron build root | `workstations` | Use the focused workstation's `build_repos` entry: parent of `infra/` where the agent Go module and `main.go` live |
 
 
 Then read **`references/alis-workspace.md`** for path rules and fallback discovery. Use `workstations.build_repos` for the agent module and entrypoint.

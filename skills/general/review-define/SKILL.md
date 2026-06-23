@@ -10,7 +10,7 @@ description: >
   well-worded comments, asking the user for clarification where intent is unclear.
 metadata:
   alis.context.version: "1"
-  alis.context.requires: workstations.define_repos
+  alis.context.requires: workstations
 ---
 
 # Review Define
@@ -59,7 +59,7 @@ current workstation.
 
 | Value                  | Context field                                          | If absent, how to obtain it                                                                                                            |
 | ---------------------- | ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
-| **Neuron define tree** | `workstations.define_repos` (entry for `focus_neuron`) | Default root `~/alis.build`, then `<root>/<landing-zone>/define/<org>/<product>/<service>/<version>`; confirm the folder with the user |
+| **Neuron define tree** | `workstations` | Use the focused workstation's `define_repos` entry for `focus_neuron`; otherwise default root `~/alis.build`, then `<root>/<landing-zone>/define/<org>/<product>/<service>/<version>`; confirm the folder with the user |
 
 **`workstations.define_repos` is the field that scopes this review.** It points at the focused
 neuron's define tree. **Review every `.proto` file in that folder (recursively).** If the entry

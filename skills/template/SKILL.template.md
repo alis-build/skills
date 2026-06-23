@@ -7,8 +7,7 @@ metadata:
   alis.context.requires: >-
     organisation organisation_id product product_id
     focus_neuron focus_neuron_id environment session.ide
-    workstations.root_directory workstations.define_repos
-    workstations.build_repos workstations.playground
+    workstations
 ---
 
 # Template Skill
@@ -43,10 +42,10 @@ exactly — do not document fields that are not in the manifest.
 | Product            | `product` (`organisations/*/products/*`)                   | MCP `ViewProduct`; else ask the user                                                                                                                                                                   |
 | Focused neuron     | `focus_neuron` (`.../neurons/*`)                           | This skill **always creates a new neuron** for the quickstart, so `focus_neuron` is **not** the target — treat it (or any existing service) as off-limits and ask the user for a new neuron ID instead |
 | Environment        | `environment` (`.../environments/*`)                       | MCP `ViewProduct`; **never invent**                                                                                                                                                                    |
-| Alis Build root    | `workstations.root_directory`                              | Default `~/alis.build`; confirm with the user if unsure                                                                                                                                                |
-| Neuron define tree | `workstations.define_repos` (entry for the **new** neuron) | `<root_directory>/<landing-zone>/define/<org>/<product>/<service>/<version>`                                                                                                                           |
-| Neuron build root  | `workstations.build_repos` (entry for the **new** neuron)  | Parent of the neuron's `infra/`; else derive from the filesystem                                                                                                                                       |
-| Playground test    | `workstations.playground`                                  | `<neuron build root>/.playground/main_test.go`                                                                                                                                                         |
+| Alis Build root    | `workstations`                                             | Use the focused workstation's `root_directory`; default `~/alis.build` and confirm with the user if unsure                                                                                              |
+| Neuron define tree | `workstations`                                             | Use the focused workstation's `define_repos` entry for the **new** neuron: `<root_directory>/<landing-zone>/define/<org>/<product>/<service>/<version>`                                                 |
+| Neuron build root  | `workstations`                                             | Use the focused workstation's `build_repos` entry for the **new** neuron: parent of the neuron's `infra/`; else derive from the filesystem                                                             |
+| Playground test    | `workstations`                                             | Use the focused workstation's `playground` path; otherwise `<neuron build root>/.playground/main_test.go`                                                                                                |
 | Host editor        | `session.ide`                                              | If absent or unknown, drive the flow through MCP tools / manual steps as today and do **not** use the deep-link commands. See **IDE Guided Mode**.                                                     |
 
 **Ids** — available directly as fields, so do not parse resource names: `organisation_id` (the

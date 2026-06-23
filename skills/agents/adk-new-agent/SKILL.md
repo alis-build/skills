@@ -10,8 +10,7 @@ metadata:
   alis.context.version: "1"
   alis.context.requires: >-
     organisation organisation_id product product_id environment
-    workstations.root_directory workstations.define_repos
-    workstations.build_repos session.ide
+    workstations session.ide
 ---
 
 # New ADK-Go Agent
@@ -50,9 +49,9 @@ instructions by the Alis Build MCP `LoadSkill` handler. The handler reads
 | Product | `product` (`organisations/*/products/*`) | MCP `ViewProduct`; else ask the user |
 | Product id | `product_id` | MCP `ViewProduct`; else ask the user |
 | Environment | `environment` (`.../environments/*`) | MCP `ViewProduct`; **never invent** |
-| Alis Build root | `workstations.root_directory` | Default `~/alis.build`; confirm with the user if unsure |
-| Neuron define tree | `workstations.define_repos` | Entry for the **new** neuron after `blocks/agent` install |
-| Neuron build root | `workstations.build_repos` | Parent of the new neuron's `infra/` after install |
+| Alis Build root | `workstations` | Use the focused workstation's `root_directory`; default `~/alis.build` and confirm with the user if unsure |
+| Neuron define tree | `workstations` | Use the focused workstation's `define_repos` entry for the **new** neuron after `blocks/agent` install |
+| Neuron build root | `workstations` | Use the focused workstation's `build_repos` entry: parent of the new neuron's `infra/` after install |
 | Host editor | `session.ide` | If absent or unknown, use MCP / manual steps; do not use IDE deep-link commands |
 
 

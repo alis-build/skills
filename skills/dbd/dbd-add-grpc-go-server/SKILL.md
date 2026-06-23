@@ -10,7 +10,7 @@ metadata:
   alis.context.version: "1"
   # Context field paths this skill needs from the injected runtime context.
   alis.context.requires: >-
-    workstations.define_repos session.working_directory
+    workstations session.working_directory
 ---
 
 # Add a gRPC Go server
@@ -47,7 +47,7 @@ instructions by the Alis Build MCP `LoadSkill` handler. The handler reads
 
 | Value                 | Context field                | If absent, how to obtain it                                                                                                          |
 | --------------------- | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| Proto definitions dir | `workstations.define_repos`  | The path where the `.proto` **definitions** for this service live (`<root>/<landing-zone>/define/<org>/<product>/<service>/<version>`). The server is generated from the services found here. |
+| Proto definitions dir | `workstations`  | Use the focused workstation's `define_repos` entry: the path where the `.proto` **definitions** for this service live (`<root>/<landing-zone>/define/<org>/<product>/<service>/<version>`). The server is generated from the services found here. |
 | Implementation dir    | `session.working_directory`  | The directory where `server.go` and the rest of the neuron are written. Default to the current working directory; confirm with the user if it does not look like a `<neuron>/<version>` build folder. |
 
 ---
