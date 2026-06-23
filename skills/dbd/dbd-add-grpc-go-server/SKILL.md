@@ -8,7 +8,7 @@ description: >
   languages and not for editing the proto contract itself.
 metadata:
   alis.context.version: "1"
-  # Read mask for GetContext — list only the Context field paths this skill needs.
+  # Context field paths this skill needs from the injected runtime context.
   alis.context.requires: >-
     workstations.define_repos session.working_directory
 ---
@@ -37,8 +37,9 @@ This skill generates `server.go`, one Go file per proto service, `go.mod`, a `Do
 ## Runtime Context
 
 This skill may be loaded with an `<alis-runtime-context>` block injected at the top of these
-instructions by the Alis Build MCP `LoadSkill` handler. The handler reads `alis.context.requires`
-below and uses it as the `read_mask` on `GetContext` — the block carries **only** those fields.
+instructions by the Alis Build MCP `LoadSkill` handler. The handler reads
+`alis.context.requires` below to decide which context fields to include; the block carries
+**only** those fields.
 **When the block is present, its values are authoritative**: use the exact paths verbatim, and do
 **not** scan folders or ask the user to confirm a value that was already provided.
 

@@ -32,37 +32,28 @@ Use the bundled launcher only when the user explicitly wants the SPA served from
 ## Runtime Context
 
 This skill may be loaded with an `<alis-runtime-context>` block injected at the top of these
-instructions by the Alis Build MCP `LoadSkill` handler. The handler reads `alis.context.requires`
-below and uses it as the `read_mask` on `GetContext` — the block carries **only** those fields.
+instructions by the Alis Build MCP `LoadSkill` handler. The handler reads
+`alis.context.requires` below to decide which context fields to include; the block carries
+**only** those fields.
 
 **Resolution order** — when discovering workspace values before edits:
 
-1. **Resolve script** — `bash scripts/resolve-alis-workspace.sh --json` (pass `--cwd` when the working directory differs from the target neuron). Prefer script output when a field is present.
-2. **`<alis-runtime-context>`** — for any **read-mask** field still missing after the script, use the block verbatim. Do not re-derive or ask the user to confirm values already provided.
-3. **MCP** — `ListLandingZones` → `GetLandingZone` → `ViewProduct(lz, product)` for neuron lists, versions, and environments. Use `CloneProduct` / `PullDefine` for canonical clone paths. Never invent environment IDs.
-4. **Neuron anchors** — nearest `go.mod` under `workstations.build_repos`.
-5. **Ask user** — Smallest missing piece only.
+1. **`<alis-runtime-context>`** — use injected context fields verbatim. Do not re-derive or ask the user to confirm values already provided.
+2. **MCP** — `ListLandingZones` → `GetLandingZone` → `ViewProduct(lz, product)` for neuron lists, versions, and environments. Use `CloneProduct` / `PullDefine` for canonical clone paths. Never invent environment IDs.
+3. **Neuron anchors** — nearest `go.mod` under `workstations.build_repos`.
+4. **Ask user** — Smallest missing piece only.
 
 **Never invent environment IDs or commit SHAs.** Do not read infra Terraform files for neuron id or workstation paths.
 
 ### Context fields (`alis.context.requires`)
 
-| Value | Context field | If absent (after script + block) |
+| Value | Context field | If absent (after runtime context) |
 | ----- | ------------- | -------------------------------- |
 | Landing zone id | `organisation_id` | MCP `GetLandingZone`; needed for `InstallBlock` |
 | Product id | `product_id` | MCP `ViewProduct`; needed for `InstallBlock` |
 | Neuron / service id | `focus_neuron_id` | Neuron scope for console install and agent verification |
 | Neuron build root | `workstations.build_repos` | Parent of `infra/` and install target for `console/` |
 
-## Available scripts
-
-- **`scripts/resolve-alis-workspace.sh`** — Resolves Alis Build workspace context (organisation, product, neuron, paths) from the current working directory. Run with `--json` for structured output, `--help` for usage.
-
-**Before any edits**, run the workspace resolver:
-
-```bash
-bash scripts/resolve-alis-workspace.sh --json
-```
 
 Then read **`references/alis-workspace.md`** for path rules and discovery. Use `workstations.build_repos` for the neuron root.
 
@@ -128,7 +119,7 @@ If BFF signals are present, skip `InstallBlock` and proceed to post-install veri
 
 | # | Action |
 |---|--------|
-| 0 | Run `bash scripts/resolve-alis-workspace.sh --json`; MCP `ViewProduct` if `organisation_id` or `product_id` is missing |
+| 0 | Use runtime context values; MCP `ViewProduct` if `organisation_id` or `product_id` is missing |
 | 1 | **Discover** — grep for `console/server.go`, `google_cloud_run_v2_service.console` in `infra/`; if present, skip to **Post-install wiring** |
 | 2 | **`InstallBlock`** with `block_id: "agentsui"`, resolved `landing_zone_id` (= `organisation_id`), `product_id`, and `neuron_id` (= `focus_neuron_id`). On failure only, call `ListBlocks` to confirm the block id |
 | 3 | Inspect `BlockInstall` response (`package`, `git_branch`, `state`); read installed `console/README.md` for block-local SPA and feature docs |

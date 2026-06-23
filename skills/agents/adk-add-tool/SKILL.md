@@ -21,38 +21,29 @@ Before creating any new package, search the build module for existing tools wiri
 ## Runtime Context
 
 This skill may be loaded with an `<alis-runtime-context>` block injected at the top of these
-instructions by the Alis Build MCP `LoadSkill` handler. The handler reads `alis.context.requires`
-below and uses it as the `read_mask` on `GetContext` — the block carries **only** those fields.
+instructions by the Alis Build MCP `LoadSkill` handler. The handler reads
+`alis.context.requires` below to decide which context fields to include; the block carries
+**only** those fields.
 
 **Resolution order** — when discovering workspace values before edits:
 
-1. **Resolve script** — `bash scripts/resolve-alis-workspace.sh --json` (pass `--cwd` when the working directory differs from the target neuron). Prefer script output when a field is present.
-2. **`<alis-runtime-context>`** — for any **read-mask** field still missing after the script, use the block verbatim. Do not re-derive or ask the user to confirm values already provided.
-3. **MCP** — `ListLandingZones` -> `GetLandingZone` -> `ViewProduct(lz, product)` for neuron lists, versions, and environments. Use `CloneProduct` / `PullDefine` for canonical clone paths. Never invent environment IDs.
-4. **Neuron anchors** — nearest `go.mod` under `workstations.build_repos`; `tools.proto` under `workstations.define_repos`.
-5. **Ask user** — Smallest missing piece only.
+1. **`<alis-runtime-context>`** — use injected context fields verbatim. Do not re-derive or ask the user to confirm values already provided.
+2. **MCP** — `ListLandingZones` -> `GetLandingZone` -> `ViewProduct(lz, product)` for neuron lists, versions, and environments. Use `CloneProduct` / `PullDefine` for canonical clone paths. Never invent environment IDs.
+3. **Neuron anchors** — nearest `go.mod` under `workstations.build_repos`; `tools.proto` under `workstations.define_repos`.
+4. **Ask user** — Smallest missing piece only.
 
 **Never invent environment IDs or commit SHAs.** Do not read infra Terraform files for neuron id or workstation paths.
 
 ### Context fields (`alis.context.requires`)
 
-| Value | Context field | If absent (after script + block) |
+| Value | Context field | If absent (after runtime context) |
 | ----- | ------------- | -------------------------------- |
 | Neuron / service id | `focus_neuron_id` | Neuron scope for `tools.proto` and handler wiring |
 | Neuron build root | `workstations.build_repos` | Go module with tools package and entrypoint |
 | Neuron define tree | `workstations.define_repos` | Define package containing `tools.proto` |
 
-## Available scripts
 
-- **`scripts/resolve-alis-workspace.sh`** — Resolves Alis Build workspace context (organisation, product, neuron, paths) from the current working directory. Run with `--json` for structured output, `--help` for usage.
-
-**Before any edits**, run the workspace resolver to identify the neuron, paths, and service id:
-
-```bash
-bash scripts/resolve-alis-workspace.sh --json
-```
-
-Then read **`references/workspace-tools.md`**, **`references/alis-workspace.md`**, and **`references/define-stubs.md`**. Follow **`references/alis-workspace.md`** resolution order (script -> runtime context -> MCP -> neuron anchors) — never derive paths from another product or chat.
+Then read **`references/workspace-tools.md`**, **`references/alis-workspace.md`**, and **`references/define-stubs.md`**. Follow **`references/alis-workspace.md`** resolution order (runtime context -> MCP -> neuron anchors) — never derive paths from another product or chat.
 
 ## When to use
 
@@ -124,7 +115,7 @@ Group tools with `NewToolSet` and set `llmagent.Config.Toolsets` instead of (or 
 ## Verification (always)
 
 - [ ] `tools.proto` edited in the define package from **`alis-workspace.md`** discovery
-- [ ] User ran define on the package or neuron (values from **`alis-workspace.md`** discovery via resolve script or MCP, not from this skill)
+- [ ] User ran define on the package or neuron (values from **`alis-workspace.md`** discovery via runtime context or MCP, not from this skill)
 - [ ] User installed required dependencies after define
 - [ ] `go build ./...` passes
 - [ ] Tool registered in `MyTools()` with correct snake_case name

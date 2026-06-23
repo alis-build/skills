@@ -19,7 +19,7 @@ import (
 	"REPLACE_WITH_YOUR_MODULE/internal/tools"
 )
 
-// Must match focus_neuron_id from resolve-alis-workspace.sh.
+// Must match `focus_neuron_id` from runtime context.
 const lroServiceID = "REPLACE_WITH_LRO_SERVICE_ID"
 
 func main() {

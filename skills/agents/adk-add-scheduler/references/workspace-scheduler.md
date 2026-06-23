@@ -29,7 +29,7 @@ Landing zone (organisation) → product → neuron (deployable service). Build a
 
 ## Canonical paths
 
-| Artifact | Script key |
+| Artifact | Context field |
 | -------- | ---------- |
 | Alis Build root | `workstations.root_directory` |
 | Neuron build root | `workstations.build_repos[]` |
@@ -39,21 +39,14 @@ Landing zone (organisation) → product → neuron (deployable service). Build a
 
 ## Discovery tier order
 
-1. **Resolve script** — Run the bundled resolver:
-
-   ```bash
-   bash scripts/resolve-alis-workspace.sh --json
-   bash scripts/resolve-alis-workspace.sh --json --cwd <path>
-   ```
-
-2. **`<alis-runtime-context>`** — Use injected values when present.
-3. **MCP** — `ListLandingZones` → `GetLandingZone` → `ViewProduct`.
-4. **Neuron anchors** — nearest `go.mod` under the neuron build root.
-5. **Ask user** — Smallest missing piece only.
+1. **`<alis-runtime-context>`** — Use injected values when present.
+2. **MCP** — `ListLandingZones` → `GetLandingZone` → `ViewProduct`.
+3. **Neuron anchors** — nearest `go.mod` under the neuron build root.
+4. **Ask user** — Smallest missing piece only.
 
 ## Quick discovery (before any edit)
 
-1. **Neuron root** — `workstations.build_repos` from the resolve script.
+1. **Neuron root** — `workstations.build_repos` from the runtime context.
 2. **Go module** — nearest `go.mod` under that root.
 3. **Identity** — search for existing central identity; if absent, `focus_neuron_id` → `NeuronId`, derive `AppName`.
 4. **Infra directory** — `workstations.infra` for Cloud Tasks queue and Spanner Terraform.
@@ -74,7 +67,7 @@ Landing zone (organisation) → product → neuron (deployable service). Build a
 
 | Do | Do not |
 | ---- | ------ |
-| Run resolve script first | Declare `serviceID` inline in scheduler code |
+| Use `<alis-runtime-context>` first | Declare `serviceID` inline in scheduler code |
 | Consolidate identity to one central package before wiring | Scatter `AppName` / neuron id across packages |
 | Use central `NeuronId` for queue and table prefix | Pass hyphenated id to `NewLauncher` (use `AppName`) |
 | Match `local.neuron` in infra to central `NeuronId` | Guess ids from folder names |

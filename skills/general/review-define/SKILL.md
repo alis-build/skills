@@ -29,8 +29,8 @@ behaviour. Only edit `.proto` files when the user asks you to apply a fix.
 
 This skill may be loaded with an `<alis-runtime-context>` block injected at the top of these
 instructions by the Alis Build MCP `LoadSkill` handler. The handler reads this skill's
-`alis.context.requires` manifest — a set of `Context` field paths (`alis.os.context.v1`) — and
-uses it as the `read_mask` on `GetContext`, so the block carries exactly those resolved fields.
+`alis.context.requires` manifest — a set of `Context` field paths (`alis.os.context.v1`) — so
+the block carries exactly those resolved fields.
 **When the block is present, its values are authoritative**: use the exact paths and resource
 names verbatim, and do **not** scan folders, derive paths from the filesystem, or ask the user
 to confirm a value that was already provided.

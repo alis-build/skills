@@ -3,7 +3,7 @@ name: template-skill
 description: A clear description of what this skill does and when an agent should use it.
 metadata:
   alis.context.version: "1"
-  # Read mask for GetContext — list only the Context field paths this skill needs.
+  # Context field paths this skill needs from the injected runtime context.
   alis.context.requires: >-
     organisation organisation_id product product_id
     focus_neuron focus_neuron_id environment session.ide
@@ -18,24 +18,24 @@ Instructions, checklists, and links to references/ go here.
 ## Runtime Context
 
 This skill may be loaded with an `<alis-runtime-context>` block injected at the top of these
-instructions by the Alis Build MCP `LoadSkill` handler. The handler reads `alis.context.requires`
-below and uses it as the `read_mask` on `GetContext` — the block carries **only** those fields.
+instructions by the Alis Build MCP `LoadSkill` handler. The handler reads
+`alis.context.requires` below to decide which context fields to include; the block carries
+**only** those fields.
 **When the block is present, its values are authoritative**: use the exact paths and resource
 names verbatim, and do **not** scan folders, derive paths from the filesystem, or ask the user
 to confirm a value that was already provided.
 
 **Resolution order** — when discovering workspace values before edits:
 
-1. **Resolve script** — `bash scripts/resolve-alis-workspace.sh --json` (pass `--cwd` when needed). Prefer script output when a field is present.
-2. **`<alis-runtime-context>`** — for any **read-mask** field still missing after the script, use the block verbatim.
-3. **Everything else** — MCP, path conventions, neuron anchors, then ask the user.
+1. **`<alis-runtime-context>`** — use injected context fields verbatim.
+2. **Everything else** — MCP, path conventions, neuron anchors, then ask the user.
 
 **Never invent environment IDs or commit SHAs — look them up or ask.**
 
 ### Context fields (`alis.context.requires`)
 
 Trim the manifest above to the fields this skill actually needs. The table below must match it
-exactly — do not document fields that are not in the read mask.
+exactly — do not document fields that are not in the manifest.
 
 | Value              | Context field                                              | If absent, how to obtain it                                                                                                                                                                            |
 | ------------------ | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -60,7 +60,3 @@ Describe the triggers and scope.
 ## When not to use
 
 Point to sibling skills or alternatives.
-
-## Available scripts
-
-- **`scripts/resolve-alis-workspace.sh`** — Resolves Alis Build workspace context (organisation, product, neuron, paths) from the current working directory. Run with `--json` for structured output, `--help` for usage.

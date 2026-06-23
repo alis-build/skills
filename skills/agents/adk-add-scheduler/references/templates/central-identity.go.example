@@ -3,7 +3,7 @@
 //           All other packages import from this source. No duplicates allowed.
 // Greenfield default path: internal/info/info.go
 //
-// NeuronId: hyphenated platform id (focus_neuron_id from resolve script).
+// NeuronId: hyphenated platform id (`focus_neuron_id` from runtime context).
 // AppName:  same id with hyphens replaced by periods (used by llmagent, launchers, -app_name).
 //
 // Shared capability with add-agui — identical contract.

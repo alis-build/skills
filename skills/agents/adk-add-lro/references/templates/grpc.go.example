@@ -15,7 +15,7 @@ var LRO *lro.Client
 
 // InitLRO constructs the LRO client from environment configuration and registers
 // resumable operation handlers. serviceID must match the neuron id used when the
-// serviceID must match focus_neuron_id from resolve-alis-workspace.sh (not infra Terraform locals).
+// serviceID must match `focus_neuron_id` from runtime context (not infra Terraform locals).
 func InitLRO(ctx context.Context, serviceID string) error {
 	client, err := lro.NewFromEnv(ctx, serviceID)
 	if err != nil {

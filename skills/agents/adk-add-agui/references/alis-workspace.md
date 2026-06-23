@@ -31,7 +31,7 @@ Landing zone (organisation) → product → neuron (deployable service). Build a
 
 ## Canonical paths
 
-| Artifact | Script key |
+| Artifact | Context field |
 | -------- | ---------- |
 | Alis Build root | `workstations.root_directory` |
 | Neuron build root | `workstations.build_repos[]` |
@@ -41,28 +41,18 @@ Landing zone (organisation) → product → neuron (deployable service). Build a
 
 ## Discovery tier order
 
-1. **Resolve script** — Run the bundled resolver. It derives organisation, product, neuron id, and all workstation paths purely from the `~/alis.build/` directory structure. Pass `--cwd` when the user's working directory differs from the target neuron:
-
-   ```bash
-   bash scripts/resolve-alis-workspace.sh --json
-   bash scripts/resolve-alis-workspace.sh --json --cwd <path>
-   ```
-
-   The JSON output provides `organisation_id`, `product_id`, `focus_neuron_id`, and `workstations` (build_repos, define_repos, infra, playground). Use these values directly — do not re-derive them.
-
-2. **`<alis-runtime-context>`** — When LoadSkill injected the block, use its values for any field not already set by the resolve script. Do not re-derive or re-ask for values present in the block.
-
-3. **MCP** — `ListLandingZones` → `GetLandingZone` → `ViewProduct(lz, product)` for neuron lists, versions, and environments. Use `CloneProduct` / `PullDefine` for canonical clone paths. Never invent environment IDs.
-4. **Neuron anchors** — nearest `go.mod` under the neuron build root for the service you are editing. For Spanner proto work, `tools.proto` under the matching define tree (`workstations.define_repos`).
-5. **Ask user** — Smallest missing piece only (which `go.mod` when several exist).
+1. **`<alis-runtime-context>`** — Use injected values for organisation, product, focused neuron, and workstation paths. Do not re-derive or re-ask for values present in the block.
+2. **MCP** — `ListLandingZones` → `GetLandingZone` → `ViewProduct(lz, product)` for neuron lists, versions, and environments. Use `CloneProduct` / `PullDefine` for canonical clone paths. Never invent environment IDs.
+3. **Neuron anchors** — nearest `go.mod` under the neuron build root for the service you are editing. For Spanner proto work, `tools.proto` under the matching define tree (`workstations.define_repos`).
+4. **Ask user** — Smallest missing piece only (which `go.mod` when several exist).
 
 ## Quick discovery (before any edit)
 
-1. **Neuron root** — `workstations.build_repos` from the resolve script.
+1. **Neuron root** — `workstations.build_repos` from the runtime context.
 
 2. **Go module** — nearest `go.mod` under that root. AG-UI wiring is in that module's entrypoint.
 
-3. **Identity** — `focus_neuron_id` from resolve script → `NeuronId`; derive `AppName` with `-` → `.`. Check for existing `internal/info` before creating.
+3. **Identity** — `focus_neuron_id` from runtime context → `NeuronId`; derive `AppName` with `-` → `.`. Check for existing `internal/info` before creating.
 
 4. **Infra** — `workstations.infra` for Terraform (`alis.agui.history.v1` module).
 
@@ -72,12 +62,12 @@ Landing zone (organisation) → product → neuron (deployable service). Build a
 
 | Do | Do not |
 | ---- | ------ |
-| Run `bash scripts/resolve-alis-workspace.sh --json` first | Manually parse `~/alis.build` paths or read infra terraform files for neuron id |
+| Use `<alis-runtime-context>` values first | Manually parse `~/alis.build` paths or read infra terraform files for neuron id |
 | Consolidate identity to one central package before wiring | Add duplicate neuron id consts in `history.go` or `main.go` |
 | Keep Go edits on the **same** neuron id and neuron root | Edit another neuron's code from memory or templates |
-| Use the resolve script output for build/define/infra paths | Assume every neuron uses an `agent/` subfolder |
+| Use the runtime context for build/define/infra paths | Assume every neuron uses an `agent/` subfolder |
 | Read `go.mod` from the open project | Invent paths from another product or chat |
-| Follow discovery tier order above | Rely on ad-hoc metadata files instead of the script, runtime context, or MCP |
+| Follow discovery tier order above | Rely on ad-hoc metadata files instead of runtime context or MCP |
 | Use **`SKILL.md`** and **`references/infra-agui-history.md`** for proto/infra steps | Follow define-stubs.md or add-tool proto workflows from another skill |
 | Ask the user if pairing is unclear | Guess repo layout or assume neuron id equals one folder name |
 

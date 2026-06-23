@@ -46,7 +46,7 @@ Derive Docker build paths from the filesystem (where each `Dockerfile` lives), n
 
 ## Canonical paths
 
-| Artifact | Script key |
+| Artifact | Context field |
 | -------- | ---------- |
 | Alis Build root | `workstations.root_directory` |
 | Neuron build root | `workstations.build_repos[]` |
@@ -56,28 +56,18 @@ Derive Docker build paths from the filesystem (where each `Dockerfile` lives), n
 
 ## Discovery tier order
 
-1. **Resolve script** — Run the bundled resolver. It derives organisation, product, neuron id, and all workstation paths purely from the `~/alis.build/` directory structure. Pass `--cwd` when the user's working directory differs from the target neuron:
-
-   ```bash
-   bash scripts/resolve-alis-workspace.sh --json
-   bash scripts/resolve-alis-workspace.sh --json --cwd <path>
-   ```
-
-   The JSON output provides `organisation_id`, `product_id`, `focus_neuron_id`, and `workstations` (build_repos, define_repos, infra, playground). Use these values directly — do not re-derive them.
-
-2. **`<alis-runtime-context>`** — When LoadSkill injected the block, use its values for any field not already set by the resolve script. Do not re-derive or re-ask for values present in the block.
-
-3. **MCP** — `ListLandingZones` → `GetLandingZone` → `ViewProduct(lz, product)` for neuron lists, versions, and environments. Use `CloneProduct` / `PullDefine` for canonical clone paths. Never invent environment IDs.
-4. **Neuron anchors** — nearest `go.mod` under the neuron build root for the service you are editing; `tools.proto` at the matching define tree → `package` line.
-5. **Ask user** — Smallest missing piece only (which service when multiple `go.mod` exist, or which neuron when several exist).
+1. **`<alis-runtime-context>`** — Use injected values for organisation, product, focused neuron, and workstation paths. Do not re-derive or re-ask for values present in the block.
+2. **MCP** — `ListLandingZones` → `GetLandingZone` → `ViewProduct(lz, product)` for neuron lists, versions, and environments. Use `CloneProduct` / `PullDefine` for canonical clone paths. Never invent environment IDs.
+3. **Neuron anchors** — nearest `go.mod` under the neuron build root for the service you are editing; `tools.proto` at the matching define tree → `package` line.
+4. **Ask user** — Smallest missing piece only (which service when multiple `go.mod` exist, or which neuron when several exist).
 
 ## Path discovery (within a neuron)
 
 | Need | Where |
 | ---- | ----- |
-| **Neuron root** | `workstations.build_repos` from the resolve script |
-| **Neuron id** | `focus_neuron_id` from the resolve script |
-| **Infra** | `workstations.infra` from the resolve script |
+| **Neuron root** | `workstations.build_repos` from the runtime context |
+| **Neuron id** | `focus_neuron_id` from the runtime context |
+| **Infra** | `workstations.infra` from the runtime context |
 | Go **module** | Nearest `go.mod` under the neuron root for the service you are editing |
 | Entrypoint | `main.go` (or project entrypoint) in the same module directory |
 | Proto **package** | `package` line in `tools.proto` under the neuron define tree (`workstations.define_repos`) |
@@ -89,11 +79,11 @@ After **any** proto change, follow **`define-stubs.md`** before Go or `go.mod` e
 
 | Do | Do not |
 | ---- | ------ |
-| Run `bash scripts/resolve-alis-workspace.sh --json` first | Manually parse `~/alis.build` paths or read infra terraform files |
+| Use `<alis-runtime-context>` values first | Manually parse `~/alis.build` paths or read infra terraform files |
 | Edit proto + code for the **same** neuron id and neuron root | Edit another neuron's files from memory or templates |
-| Use the resolve script output for build/define/infra paths | Assume every neuron uses an `agent/` subfolder |
+| Use the runtime context for build/define/infra paths | Assume every neuron uses an `agent/` subfolder |
 | Read `package`, `go.mod` from the open project | Invent paths from another product or chat |
-| Follow discovery tier order above | Rely on ad-hoc metadata files instead of the script, runtime context, or MCP |
+| Follow discovery tier order above | Rely on ad-hoc metadata files instead of runtime context or MCP |
 | Ask the user if pairing is unclear | Guess repo layout or assume neuron id equals a single folder name |
 
 User corrections override everything — re-read `package` and `go.mod` at the path they give you.
