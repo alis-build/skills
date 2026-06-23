@@ -2,37 +2,37 @@
 name: dbd-add-tracing-grpc-go
 description: >
   Use this skill when the user wants to add Google Cloud distributed tracing to an existing Go
-  gRPC neuron or Go service that calls gRPC backends, especially behind a Google Cloud External
-  Application Load Balancer or Cloud Run. It implements the Build-stage code and infra changes for
-  google.golang.org/grpc/gcp/observability, Cloud Trace sampling config, Terraform Cloud Run env
-  wiring, and optional HTTP ingress to gRPC trace-context bridging. Go only. Not for authoring
-  protos, non-Go services, or OpenTelemetry exporter implementations.
+  gRPC neuron or Go service that calls gRPC backends, especially on Cloud Run. It implements the
+  Build-stage code changes for go.alis.build/trace, Cloud Trace export, gRPC server/client
+  instrumentation, protobuf package naming, and explicit startup ordering. Go only. Not for
+  authoring protos, non-Go services, or generic OpenTelemetry collector deployments.
 metadata:
   alis.context.version: "1"
   # Context field paths this skill needs from the injected runtime context.
   alis.context.requires: >-
-    workstations.build_repos
+    workstations.build_repos,
+    focus_package_id
 ---
 
 # Add tracing to a Go gRPC service
 
 Add Google Cloud distributed tracing to an existing **Go** neuron in the **Build** stage of
-Define-Build-Deploy (DBD). Prefer the native gRPC observability plugin:
+Define-Build-Deploy (DBD). Use the shared Alis tracing helper:
 
 ```go
-google.golang.org/grpc/gcp/observability
+go.alis.build/trace
 ```
 
-This skill wires Cloud Trace/Monitoring export through Terraform configuration and starts
-observability before any gRPC client or server is created.
+This package configures the Google Cloud Trace exporter, OpenTelemetry resource attributes,
+sampling, and gRPC stats handlers. The service must start tracing before constructing any gRPC
+server or client that should be instrumented.
 
 ## When to use
 
 - An existing Go service/neuron makes or serves gRPC calls and should emit Cloud Trace spans.
-- A service is behind a Google Cloud Application Load Balancer or Cloud Run and should preserve
-  trace context into downstream Go gRPC calls.
-- The user asks for the recommended/native gRPC observability route rather than a custom
-  OpenTelemetry exporter.
+- A Cloud Run service should propagate trace context into downstream Go gRPC calls.
+- The user wants the standard Alis Build tracing setup rather than service-local OpenTelemetry
+  exporter code.
 
 ## When not to use
 
@@ -41,22 +41,22 @@ observability before any gRPC client or server is created.
 | Author or change proto contracts | **dbd-add-protos** |
 | Scaffold a new Go gRPC server from protos | **dbd-add-grpc-go-server** |
 | Non-Go tracing setup | Ask for the target runtime/framework |
-| Vendor-neutral OpenTelemetry exporter setup | Use a dedicated OTel skill/workflow, not this one |
+| Generic OpenTelemetry Collector setup | Use a dedicated OTel workflow, not this one |
 
 ## Runtime Context
 
-This skill may be loaded with an `<alis-runtime-context>` block injected at the top of these
-instructions by the Alis Build MCP `LoadSkill` handler. The handler reads
-`alis.context.requires` below to decide which context fields to include; the block carries
-**only** those fields.
-**When the block is present, its values are authoritative**: use the exact paths verbatim, and do
+When `mcp.v1` loads this skill, it injects an `<alis-runtime-context>` block at the top of the
+returned `SKILL.md` before the agent receives it. The loader reads `alis.context.requires` below to
+decide which context fields to include; the block carries **only** those fields.
+**When the block is present, its values are authoritative**: use the exact values verbatim, and do
 **not** scan folders or ask the user to confirm a value that was already provided.
 
 ### Context fields (`alis.context.requires`)
 
 | Value | Context field | If absent, how to obtain it |
 | ----- | ------------- | --------------------------- |
-| Neuron build root | `workstations.build_repos` | The existing Go service/neuron root containing `go.mod`, server/client startup code, and `infra/`. Default to the current working directory if it looks like a neuron build folder; otherwise ask. |
+| Neuron build root | `workstations.build_repos` | The existing Go service/neuron root containing `go.mod` and server/client startup code. Default to the current working directory if it looks like a neuron build folder; otherwise ask. |
+| Focus package id | `focus_package_id` | Derive from the focused neuron id by replacing hyphens with dots, for example `alis-os-skills-v1` -> `alis.os.skills.v1`; otherwise inspect the generated protobuf package. |
 
 ---
 
@@ -71,188 +71,159 @@ Inspect the build root before editing:
 - Find where gRPC clients or servers are created. Common patterns:
   - `grpc.NewServer(...)`
   - `grpc.Dial(...)` / `grpc.NewClient(...)`
-  - product helpers such as `client.NewConnWithRetry(...)`
+  - `go.alis.build/client/v2.NewConn(...)`
   - package-level `init()` functions that create global clients
-- Find Terraform under `infra/`, especially Cloud Run env vars and any `tfvars.tf`/variable file.
+- Find the generated protobuf package used by the service, usually imported as `pb`.
+- If the injected `<alis-runtime-context>` block provides `focus_package_id`, use that exact value
+  for `trace.Config.Package`.
 
 If the service is not Go or has no gRPC surface, stop and explain that this skill does not apply.
 
-### 2. Add the native gRPC observability dependency
+### 2. Add the tracing dependency
 
-Add the split gRPC observability module explicitly:
+Add the shared tracing module:
 
 ```bash
-go get google.golang.org/grpc/gcp/observability@v1.0.1
+go get go.alis.build/trace@latest
 ```
 
 Keep `google.golang.org/grpc` at the repo's current version unless the build requires otherwise.
-Do not replace this with a custom OpenTelemetry Cloud Trace exporter.
 
-### 3. Start observability before any gRPC clients or servers
+### 3. Start tracing explicitly in main
 
-Add:
-
-```go
-import "google.golang.org/grpc/gcp/observability"
-```
-
-Call `observability.Start(ctx)` before creating any gRPC clients or servers, and call
-`observability.End()` during shutdown.
-
-For services that create global gRPC clients in a package `init()`, start observability at the top
-of that same `init()` before the first connection is created:
-
-```go
-func init() {
-	ctx := context.Background()
-	// Start gRPC observability before creating any clients; the plugin installs
-	// global dial options that only apply to connections created after Start.
-	if err := observability.Start(ctx); err != nil {
-		alog.Fatalf(ctx, "failed to start gRPC observability: %v", err)
-	}
-
-	// Create gRPC clients after observability.Start.
-}
-```
-
-In the main binary, flush/cleanup on exit:
-
-```go
-func main() {
-	defer observability.End()
-
-	// Start serving.
-}
-```
-
-Do not hide this in an unnecessary helper unless the codebase already centralizes startup hooks.
-The ordering is the important part.
-
-### 4. Configure observability from Terraform
-
-Prefer setting `GRPC_GCP_OBSERVABILITY_CONFIG` as a Cloud Run environment variable from Terraform,
-not baking a JSON file into the Docker image and not branching over both config env names in Go.
-
-In the repo's Terraform variable file, add:
-
-```hcl
-variable "GRPC_GCP_OBSERVABILITY_CONFIG" {
-  default = <<-EOT
-  {
-    "cloud_trace": {
-      "sampling_rate": 0.5
-    },
-    "cloud_monitoring": {}
-  }
-  EOT
-}
-```
-
-In the Cloud Run service container env, add:
-
-```hcl
-env {
-  name  = "GOOGLE_CLOUD_PROJECT"
-  value = var.ALIS_OS_PROJECT
-}
-
-env {
-  name  = "GRPC_GCP_OBSERVABILITY_CONFIG"
-  value = var.GRPC_GCP_OBSERVABILITY_CONFIG
-}
-```
-
-Use the project's existing variable names. If it uses a different project variable than
-`ALIS_OS_PROJECT`, follow the repo's convention.
-
-### 5. Bridge HTTP ingress to gRPC only when needed
-
-Standard gRPC servers do **not** need an HTTP bridge: `grpc/gcp/observability` installs gRPC
-StatsHandlers that extract and propagate gRPC trace metadata directly.
-
-Add an HTTP-to-OpenCensus bridge only for services that receive HTTP ingress and then make outbound
-gRPC calls, such as an MCP server. Without the bridge, the outbound gRPC spans can start a separate
-trace from the ALB/HTTP request.
-
-Imports:
+Tracing must start before any gRPC server or client is constructed. Prefer explicit startup in
+`main`, followed by server/client construction.
 
 ```go
 import (
-	"net/http"
+	"context"
 
-	stackdriverpropagation "contrib.go.opencensus.io/exporter/stackdriver/propagation"
-	w3cpropagation "go.opencensus.io/plugin/ochttp/propagation/tracecontext"
-	octrace "go.opencensus.io/trace"
+	"go.alis.build/trace"
 )
-```
 
-Bridge helper:
+const traceSamplingRatio = 0.7
 
-```go
-// openCensusTraceContext bridges ALB HTTP trace headers into the OpenCensus
-// context used by gRPC observability. This server receives HTTP requests and
-// then makes outbound gRPC calls, so without this bridge the outbound gRPC
-// spans would start a separate trace.
-//
-// Standard gRPC servers do not need this helper: grpc/gcp/observability installs
-// gRPC StatsHandlers that extract and propagate gRPC trace metadata directly.
-func openCensusTraceContext(r *http.Request) (context.Context, func()) {
-	sc, ok := (&stackdriverpropagation.HTTPFormat{}).SpanContextFromRequest(r)
-	if !ok {
-		sc, ok = (&w3cpropagation.HTTPFormat{}).SpanContextFromRequest(r)
+func main() {
+	ctx := context.Background()
+	packageID := "<focus_package_id from injected alis-runtime-context>"
+	shutdownTracing, err := trace.Start(ctx, trace.Config{
+		Package:     packageID,
+		ProjectID:   projectID,
+		SampleRatio: traceSamplingRatio,
+	})
+	if err != nil {
+		alog.Fatalf(ctx, "failed to start tracing: %v", err)
 	}
-	if !ok {
-		return r.Context(), func() {}
-	}
-	ctx, span := octrace.StartSpanWithRemoteParent(r.Context(), "request", sc)
-	return ctx, span.End
+	defer func() {
+		if err := shutdownTracing(context.Background()); err != nil {
+			alog.Warnf(context.Background(), "shutting down tracer provider: %v", err)
+		}
+	}()
+
+	// Construct traced gRPC servers and clients after trace.Start.
 }
 ```
 
-Use it at the HTTP handler boundary before creating downstream contexts or making gRPC calls:
+`Package` is the Alis focus package id implemented by the Cloud Run service, for example
+`alis.os.skills.v1` or `alis.os.iam.v2`. The tracing package records this value as the OpenTelemetry
+`service.name` resource attribute. This scales to Cloud Run servers that host multiple protobuf
+services from one package; individual RPC spans still carry the full protobuf service and method
+names.
+
+When the injected `<alis-runtime-context>` block provides `focus_package_id`, use that exact value
+for `trace.Config.Package`. For example, `focus_package_id = "alis.os.skills.v1"` means
+`Package: "alis.os.skills.v1"`. Treat the injected Context value as authoritative unless the
+repository's generated protobuf package clearly contradicts it.
+
+Use the repo's existing project id configuration for `ProjectID`, such as `utils.ProjectID` or
+`trace.ProjectIDFromEnv()`.
+
+Do not hide tracing startup in `init()`. If the service currently creates gRPC clients or servers
+in package-level variables or `init()` functions, refactor those constructors so `main` can run:
+
+1. `trace.Start(...)`
+2. route/client/server setup
+3. listen/serve
+
+### 4. Instrument gRPC servers
+
+Add `trace.GRPCServerOption()` when constructing the gRPC server:
 
 ```go
-ctx, endTrace := openCensusTraceContext(r)
-defer endTrace()
-r = r.WithContext(ctx)
+grpcServer := grpc.NewServer(
+	trace.GRPCServerOption(),
+	grpc.UnaryInterceptor(unaryInterceptor),
+	grpc.StreamInterceptor(streamInterceptor),
+)
 ```
 
-If the service also uses structured logging correlation, preserve the existing logging trace
-context helper if present, for example:
+If the codebase currently has a package-level `var Server = grpc.NewServer(...)`, prefer replacing
+it with a constructor:
 
 ```go
-ctx = alog.WithCloudTraceContext(ctx, r.Header.Get("X-Cloud-Trace-Context"))
+func NewServer() *grpc.Server {
+	return grpc.NewServer(
+		trace.GRPCServerOption(),
+		grpc.UnaryInterceptor(unaryInterceptor),
+		grpc.StreamInterceptor(streamInterceptor),
+	)
+}
 ```
+
+Call this constructor only after `trace.Start(...)`.
+
+### 5. Instrument gRPC clients
+
+Add `trace.GRPCDialOption()` to outbound gRPC connections.
+
+For `go.alis.build/client/v2`:
+
+```go
+conn, err := client.NewConn(ctx, host, false,
+	client.WithDialOptions(trace.GRPCDialOption()),
+)
+```
+
+For direct gRPC:
+
+```go
+conn, err := grpc.NewClient(host,
+	trace.GRPCDialOption(),
+	// existing dial options...
+)
+```
+
+Create these clients only after `trace.Start(...)`.
 
 ### 6. Validate
 
-Run targeted compile/tests with the same env var Terraform will set:
+Run module tidy and targeted compile/tests:
 
 ```bash
-GRPC_GCP_OBSERVABILITY_CONFIG='{"cloud_trace":{"sampling_rate":0.5},"cloud_monitoring":{}}' \
-GOOGLE_CLOUD_PROJECT=<test-project> \
-go test ./...
+go mod tidy
+go test ./... -run '^$'
 ```
 
-If the repo requires private Alis protobuf modules, use the product's existing `GOPROXY` and
-`GONOSUMDB` values from its Dockerfile or local environment.
+Run focused unit tests that do not require live Cloud Run or Vertex credentials.
 
-Some Alis services initialize live Cloud Run gRPC clients during package init. A full local
-`go test ./...` may fail with local ADC such as:
+Some Alis services initialize live Cloud Run gRPC clients during setup. A full local `go test ./...`
+may fail with local ADC such as:
 
 ```text
 idtoken: unsupported credentials type: "authorized_user"
 ```
 
-When that happens, still verify packages that compile without live Cloud Run credentials, and
-report the full-suite credential limitation clearly. Do not treat it as a tracing compile failure.
+or with external-service errors from placeholder test projects. When that happens, still verify
+packages that compile without live Cloud Run credentials, and report the full-suite credential or
+integration limitation clearly. Do not treat it as a tracing compile failure.
 
 ## Verification checklist
 
-- [ ] `observability.Start(ctx)` runs before any gRPC client/server is created.
-- [ ] `observability.End()` is deferred in the main binary.
-- [ ] `GRPC_GCP_OBSERVABILITY_CONFIG` is set from Terraform/Cloud Run env, not by Docker file copy.
-- [ ] `GOOGLE_CLOUD_PROJECT` is set for the runtime project.
-- [ ] HTTP-to-OpenCensus bridge was added only if the service has HTTP ingress followed by gRPC calls.
-- [ ] Comments explain the ordering requirement and any HTTP bridge rationale.
-- [ ] Tests or targeted compile checks were run with observability config env set.
+- [ ] `go.alis.build/trace` is required in `go.mod`.
+- [ ] `trace.Start(ctx, trace.Config{Package: ...})` runs in `main` before gRPC clients/servers are created.
+- [ ] `Package` is the focus package id, such as `alis.os.skills.v1`, preferably taken directly from injected `focus_package_id` when present.
+- [ ] The shutdown function returned by `trace.Start` is deferred.
+- [ ] gRPC servers include `trace.GRPCServerOption()`.
+- [ ] Outbound gRPC clients include `trace.GRPCDialOption()`.
+- [ ] Package-level gRPC client/server initialization was refactored when needed to preserve startup order.
+- [ ] Tests or targeted compile checks were run and any credential/integration limitations were reported.
