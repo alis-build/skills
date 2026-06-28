@@ -10,7 +10,7 @@ metadata:
   alis.context.version: "1"
   alis.context.requires: >-
     organisation organisation_id product product_id environment
-    workstations session.ide
+    workstations
 ---
 
 # New ADK-Go Agent
@@ -52,7 +52,6 @@ instructions by the Alis Build MCP `LoadSkill` handler. The handler reads
 | Alis Build root | `workstations` | Use the focused workstation's `root_directory`; default `~/alis.build` and confirm with the user if unsure |
 | Neuron define tree | `workstations` | Use the focused workstation's `define_repos` entry for the **new** neuron after `blocks/agent` install |
 | Neuron build root | `workstations` | Use the focused workstation's `build_repos` entry: parent of the new neuron's `infra/` after install |
-| Host editor | `session.ide` | If absent or unknown, use MCP / manual steps; do not use IDE deep-link commands |
 
 
 Follow the **resolution order** above. Use `ViewProduct` before any deploy-related action so environment IDs come from Alis Build, not from memory or naming conventions.
@@ -119,21 +118,25 @@ agent proves the runtime, deployment, memory/session wiring, and extension point
 
 ## Define, Build, Deploy
 
-Definition generation and dependency publication are platform steps. If using Alis Build MCP:
+Definition generation and dependency publication are platform steps. Execute them with the
+`alis` CLI (see the DBD primer); fall back to the MCP `Run*` tools only when no shell is
+available.
 
-1. Refresh or inspect the define repo.
-2. Use an explicit define commit when running `RunDefine`; never pass `HEAD`.
-3. Wait for generated artifacts when later Go work depends on them.
+1. Refresh or inspect the define repo, review `tools.proto`, then commit and push the
+   definition changes.
+2. Define and publish packages: `alis define <package-id> --json --install`. The CLI defines
+   the latest pushed commit (use `--commit <sha>` to pin a specific one) and installs the
+   generated packages so later Go work compiles.
 
-If using the Build Kit UI, guide the user to review `tools.proto`, commit/push definition
-changes, and run Define from the Agent flow.
+If the user prefers the Build Kit UI, guide them to review `tools.proto`, commit/push the
+definition changes, and run Define from the Agent flow.
 
-For build:
+For build and deploy:
 
-1. Inspect Dockerfiles under the selected neuron.
-2. Use `RunBuild` with Docker build paths derived from the filesystem.
-3. Deploy the resulting build version with `RunDeploy`.
-4. Use `plan_only: true` first when Terraform changes need review.
+1. Build the service image: `alis build <package-id> --json`. The CLI auto-detects the latest
+   commit and the Dockerfiles under the neuron folder.
+2. Deploy the built version: `alis deploy <package-id> -e <env> --json`. Add `--plan-only`
+   first when Terraform changes need review.
 
 Teach this concept: define publishes typed contracts; build creates the service image; deploy
 applies the Cloud Run and Vertex AI Reasoning Engine infrastructure.
@@ -185,10 +188,10 @@ after the scaffold is working.
 - [ ] Landing zone, product, environment, and neuron were verified from workspace or MCP context.
 - [ ] `blocks/agent` is installed in the selected neuron.
 - [ ] Generated `agent/main.go`, `infra/`, and `tools.proto` exist in this workspace.
-- [ ] Define was run from an explicit definition commit or the user completed the Build Kit define step.
-- [ ] Dependencies were refreshed after define if generated Go packages are needed.
-- [ ] Build uses Docker paths discovered from this neuron's filesystem.
-- [ ] Deploy targets an environment ID returned by `ViewProduct`.
+- [ ] Define was run via `alis define` (or the user completed the Build Kit define step).
+- [ ] Dependencies were refreshed after define (e.g. `alis define --install` or `alis packages install`) if generated Go packages are needed.
+- [ ] Build was run via `alis build` (it auto-detects Docker paths from the neuron's filesystem).
+- [ ] Deploy targets an environment ID from `ViewProduct` / runtime context.
 - [ ] User understands which ADK-Go skill to use next.
 
 ## Pitfalls
@@ -197,5 +200,5 @@ after the scaffold is working.
   boundary to deployable ADK runtime.
 - Installing `blocks/agent` into the wrong active neuron.
 - Reusing paths, package names, or proto packages from another product.
-- Running `RunDefine` with `HEAD` or a guessed commit.
+- Running Define before the reviewed proto is committed and pushed (the CLI defines the latest pushed commit).
 - Starting extension work before the base scaffold is reviewed and buildable.
