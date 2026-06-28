@@ -1,0 +1,731 @@
+package db
+
+import (
+	"context"
+	"encoding/base64"
+	"errors"
+	"fmt"
+	"math"
+	"strconv"
+	"strings"
+
+	"cloud.google.com/go/iam/apiv1/iampb"
+	"cloud.google.com/go/spanner"
+	"go.alis.build/sproto/filtering"
+	"go.alis.build/sproto/ordering"
+	"google.golang.org/api/iterator"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
+	{{ range .Imports }}
+      {{- if .Alias }}{{ .Alias }}{{- end }}{{- if .Alias }}{{ " " }}{{- end }}"{{ .ImportPath }}"
+    {{ end }}
+)
+
+var (
+	// This variable is used to ensure that the Table implements the ResourceTable interface correctly.
+	_ database.ResourceTable[*{{ .ImportAlias }}.{{ .ResourceName }}] = (*{{ .CollectionId }}Table[*{{ .ImportAlias }}.{{ .ResourceName }}])(nil)
+)
+
+type {{ .CollectionId }}Table[R proto.Message] struct {
+	tableName    string
+	client       *spanner.Client
+	filterParser *filtering.Parser
+}
+
+func New{{ .ResourceNamePlural }}Table(ctx context.Context, spannerProject, spannerInstance, spannerDatabase, tableName string) (database.ResourceTable[*{{ .ImportAlias }}.{{ .ResourceName }}], error) {
+	clientConfig := spanner.ClientConfig{
+		DisableNativeMetrics: true,
+		// DatabaseRole:         strings.ReplaceAll(os.Getenv("ALIS_OS_PROJECT"), "-", "_")
+	}
+	spannerClient, err := spanner.NewClientWithConfig(ctx, fmt.Sprintf("projects/%s/instances/%s/databases/%s", spannerProject, spannerInstance, spannerDatabase), clientConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	parser, err := filtering.NewParser(filtering.Timestamp("{{ .ResourceName }}.create_time"), filtering.Timestamp("{{ .ResourceName }}.update_time"), filtering.Timestamp("{{ .ResourceName }}.delete_time"))
+	if err != nil {
+		return nil, err
+	}
+
+	return &{{ .CollectionId }}Table[*{{ .ImportAlias }}.{{ .ResourceName }}]{
+		tableName:    tableName,
+		client:       spannerClient,
+		filterParser: parser,
+	}, nil
+}
+
+func (db *{{ .CollectionId }}Table[R]) WritePolicy(ctx context.Context, name string, policy *iampb.Policy) error {
+	// Insert the row into Spanner
+	mutation := spanner.Update(db.tableName, []string{"key", "Policy"}, []interface{}{name, policy})
+	if _, err := db.client.Apply(ctx, []*spanner.Mutation{mutation}); err != nil {
+		return database.SpannerErrorToStatus(err)
+	}
+
+	return nil
+}
+
+func (db *{{ .CollectionId }}Table[R]) BatchWritePolicies(ctx context.Context, names []string, policies []*iampb.Policy) error {
+	// Validate that names and policies have the same length
+	if len(names) != len(policies) {
+		return status.Errorf(codes.InvalidArgument, "names and policies must have the same length")
+	}
+
+	// Create a slice to hold the mutations
+	mutations := make([]*spanner.Mutation, len(names))
+
+	// Iterate over the names, resources, and policies to create ResourceRows and mutations
+	for i, name := range names {
+		mutations[i] = spanner.Update(db.tableName, []string{"key", "Policy"}, []interface{}{name, policies[i]})
+	}
+
+	// Apply the mutations to Spanner
+	if _, err := db.client.Apply(ctx, mutations); err != nil {
+		return database.SpannerErrorToStatus(err)
+	}
+
+	return nil
+}
+
+func (db *{{ .CollectionId }}Table[R]) Create(ctx context.Context, name string, resource R, policy *iampb.Policy) (database.ResourceRow[R], error) {
+
+	// Create a new ResourceRow
+	resourceRow := &SpannerResourceRow[R]{
+		key:           name,
+		resource:      resource,
+		policy:        policy,
+		resourceTable: db,
+	}
+
+	// Insert the row into Spanner
+	mutation := spanner.Insert(db.tableName, []string{"key", "{{ .ResourceName }}", "Policy"}, []interface{}{name, resource, policy})
+	if _, err := db.client.Apply(ctx, []*spanner.Mutation{mutation}); err != nil {
+		return nil, database.SpannerErrorToStatus(err)
+	}
+
+	return resourceRow, nil
+}
+
+func (db *{{ .CollectionId }}Table[R]) BatchCreate(ctx context.Context, names []string, resources []R, policies []*iampb.Policy) ([]database.ResourceRow[R], error) {
+	// Validate that names, resources, and policies have the same length
+	if len(names) != len(resources) || len(names) != len(policies) {
+		return nil, status.Errorf(codes.InvalidArgument, "names, resources, and policies must have the same length")
+	}
+
+	// Create a slice to hold the ResourceRows and mutations
+	var resourceRows []database.ResourceRow[R]
+	mutations := make([]*spanner.Mutation, len(names))
+
+	// Iterate over the names, resources, and policies to create ResourceRows and mutations
+	for i, name := range names {
+		resourceRow := &SpannerResourceRow[R]{
+			key:           name,
+			resource:      resources[i],
+			policy:        policies[i],
+			resourceTable: db,
+		}
+		resourceRows = append(resourceRows, resourceRow)
+
+		mutations[i] = spanner.Insert(db.tableName, []string{"key", "{{ .ResourceName }}", "Policy"}, []interface{}{name, resources[i], policies[i]})
+	}
+
+	// Apply the mutations to Spanner
+	if _, err := db.client.Apply(ctx, mutations); err != nil {
+		return nil, database.SpannerErrorToStatus(err)
+	}
+
+	// Return the created ResourceRows
+	return resourceRows, nil
+}
+
+func (db *{{ .CollectionId }}Table[R]) Read(ctx context.Context, name string) (database.ResourceRow[R], error) {
+	// Read the row from Spanner
+	rowKey := spanner.Key{name}
+	row, err := db.client.Single().ReadRow(ctx, db.tableName, rowKey, []string{"key", "{{ .ResourceName }}", "Policy"})
+	if err != nil {
+		return nil, database.SpannerErrorToStatus(err)
+	}
+
+	// Create a new ResourceRow
+	resourceRow := &SpannerResourceRow[R]{
+		key:           name,
+		resourceTable: db,
+		policy:        nil,
+	}
+
+	// Unmarshal the resource from the row
+	resource := spanner.NullProtoMessage{
+		ProtoMessageVal: &{{ .ImportAlias }}.{{ .ResourceName }}{},
+	}
+	if err := row.ColumnByName("{{ .ResourceName }}", &resource); err != nil {
+		return nil, database.SpannerErrorToStatus(err)
+	}
+	if resource.Valid {
+		resourceRow.resource = resource.ProtoMessageVal.(R)
+	}
+
+	// Unmarshal the policy from the row
+	policy := spanner.NullProtoMessage{
+		ProtoMessageVal: &iampb.Policy{},
+	}
+	if err := row.ColumnByName("Policy", &policy); err != nil {
+		return nil, database.SpannerErrorToStatus(err)
+	}
+	if policy.Valid {
+		resourceRow.policy = policy.ProtoMessageVal.(*iampb.Policy)
+	}
+
+	return resourceRow, nil
+}
+
+func (db *{{ .CollectionId }}Table[R]) BatchRead(ctx context.Context, names []string) ([]database.ResourceRow[R], []string, error) {
+	// If no names are provided, return an empty slice
+	if len(names) == 0 {
+		return []database.ResourceRow[R]{}, nil, nil
+	}
+
+	// Create a slice of keys for the batch read
+	keySets := make([]spanner.KeySet, len(names))
+	for i, name := range names {
+		keySets[i] = &spanner.Key{name}
+	}
+
+	// Read the rows from Spanner
+	it := db.client.Single().Read(ctx, db.tableName, spanner.KeySets(keySets...), []string{"key", "{{ .ResourceName }}", "Policy"})
+	defer it.Stop()
+
+	// Create a slice to hold the ResourceRows
+	resourceRowMap := make(map[string]*SpannerResourceRow[R])
+	// Iterate over the results and construct ResourceRows
+	for {
+		row, err := it.Next()
+		if errors.Is(err, iterator.Done) {
+			break // No more rows
+		}
+		if err != nil {
+			return nil, nil, database.SpannerErrorToStatus(err)
+		}
+
+		var key string
+		if err := row.ColumnByName("key", &key); err != nil {
+			return nil, nil, database.SpannerErrorToStatus(err)
+		}
+
+		resourceRow := &SpannerResourceRow[R]{
+			key:           key,
+			resourceTable: db,
+		}
+
+		// Unmarshal the resource from the row
+		resource := spanner.NullProtoMessage{
+			ProtoMessageVal: &{{ .ImportAlias }}.{{ .ResourceName }}{},
+		}
+		if err := row.ColumnByName("{{ .ResourceName }}", &resource); err != nil {
+			return nil, nil, database.SpannerErrorToStatus(err)
+		}
+		if resource.Valid {
+			resourceRow.resource = resource.ProtoMessageVal.(R)
+		}
+
+		// Unmarshal the policy from the row
+		policy := spanner.NullProtoMessage{
+			ProtoMessageVal: &iampb.Policy{},
+		}
+		if err := row.ColumnByName("Policy", &policy); err != nil {
+			return nil, nil, database.SpannerErrorToStatus(err)
+		}
+		if policy.Valid {
+			resourceRow.policy = policy.ProtoMessageVal.(*iampb.Policy)
+		}
+
+		resourceRowMap[key] = resourceRow
+	}
+
+	// Create a slice to hold the ResourceRows
+	resourceRows := make([]database.ResourceRow[R], len(names))
+	// Create a slice of names that were not found
+	var notFoundNames []string
+	for i, name := range names {
+		if row, found := resourceRowMap[name]; found {
+			resourceRows[i] = row
+		} else {
+			resourceRows[i] = nil
+			notFoundNames = append(notFoundNames, name)
+		}
+	}
+
+	return resourceRows, notFoundNames, nil
+}
+
+func (db *{{ .CollectionId }}Table[R]) Write(ctx context.Context, name string, resource R, policy *iampb.Policy) (database.ResourceRow[R], error) {
+	// Create a new ResourceRow
+	resourceRow := &SpannerResourceRow[R]{
+		key:           name,
+		resource:      resource,
+		policy:        policy,
+		resourceTable: db,
+	}
+
+	// Insert the row into Spanner
+	mutation := spanner.InsertOrUpdate(db.tableName, []string{"key", "{{ .ResourceName }}", "Policy"}, []interface{}{name, resource, policy})
+	if _, err := db.client.Apply(ctx, []*spanner.Mutation{mutation}); err != nil {
+		return nil, database.SpannerErrorToStatus(err)
+	}
+
+	return resourceRow, nil
+}
+
+func (db *{{ .CollectionId }}Table[R]) BatchWrite(ctx context.Context, names []string, resources []R, policies []*iampb.Policy) ([]database.ResourceRow[R], error) {
+	// Validate that names, resources, and policies have the same length
+	if len(names) != len(resources) || len(names) != len(policies) {
+		return nil, fmt.Errorf("names, resources, and policies must have the same length")
+	}
+
+	// Create a slice to hold the ResourceRows and mutations
+	var resourceRows []database.ResourceRow[R]
+	mutations := make([]*spanner.Mutation, len(names))
+
+	// Iterate over the names, resources, and policies to create ResourceRows and mutations
+	for i, name := range names {
+		resourceRow := &SpannerResourceRow[R]{
+			key:           name,
+			resource:      resources[i],
+			policy:        policies[i],
+			resourceTable: db,
+		}
+		resourceRows = append(resourceRows, resourceRow)
+
+		mutations[i] = spanner.InsertOrUpdate(db.tableName, []string{"key", "{{ .ResourceName }}", "Policy"}, []interface{}{name, resources[i], policies[i]})
+	}
+
+	// Apply the mutations to Spanner
+	if _, err := db.client.Apply(ctx, mutations); err != nil {
+		return nil, database.SpannerErrorToStatus(err)
+	}
+
+	// Return the updated ResourceRows
+	return resourceRows, nil
+}
+
+func (db *{{ .CollectionId }}Table[R]) List(ctx context.Context, parent string, pageSize int32, pageToken string, filter string, orderBy string) ([]database.ResourceRow[R], string, error) {
+
+	statement := spanner.NewStatement(fmt.Sprintf("SELECT `key`,`{{ .ResourceName }}`,`Policy` FROM %s", db.tableName))
+
+	if parent != "" {
+		statement.SQL += fmt.Sprintf(" WHERE STARTS_WITH(%s,@parent)", "key")
+		statement.Params["parent"] = parent
+	}
+
+	// Append filter to the statement
+	if filter != "" {
+		filterStmt, err := db.filterParser.Parse(filter)
+		if err != nil {
+			return nil, "", err
+		}
+
+		// If the parent is not empty, we need to add an AND condition
+		if parent != "" {
+			statement.SQL += " AND "
+		} else {
+			// If the parent is empty, we start with WHERE
+			statement.SQL += " WHERE "
+		}
+
+		// Append the filter SQL and parameters
+		statement.SQL += filterStmt.SQL
+		for k, v := range filterStmt.Params {
+			statement.Params[k] = v
+		}
+	}
+
+	// Add sorting conditions if provided
+	if orderBy != "" {
+		order, err := ordering.NewOrder(orderBy)
+		if err != nil {
+			return nil, "", err
+		}
+		sortOrder := order.SortOrder()
+
+		statement.SQL += " ORDER BY "
+
+		sortColumns := make([]string, 0, len(sortOrder))
+		for column, columnOrder := range sortOrder {
+			sortColumns = append(sortColumns, fmt.Sprintf("%s %s", column, columnOrder.String()))
+		}
+
+		statement.SQL += strings.Join(sortColumns, ", ")
+	}
+	// Add limit if provided
+	limit := 100
+	if pageSize > 0 {
+		limit = int(math.Min(float64(pageSize), float64(limit)))
+	}
+	statement.SQL += fmt.Sprintf(" LIMIT %v", limit)
+
+	// Add offset if page token is provided
+	var offset int64
+	if pageToken != "" {
+		offsetBytes, err := base64.StdEncoding.DecodeString(pageToken)
+		if err != nil {
+			return nil, "", status.Errorf(codes.Internal, "decode page token: %s", err.Error())
+		}
+
+		offset, err = strconv.ParseInt(string(offsetBytes), 10, 64)
+		if err != nil {
+			return nil, "", status.Errorf(codes.Internal, "parse page token: %s", err.Error())
+		}
+		statement.SQL += fmt.Sprintf(" OFFSET %v", offset)
+	}
+
+	it := db.client.Single().Query(ctx, statement)
+	defer it.Stop()
+
+	var resourceRows []database.ResourceRow[R]
+	for {
+		row, err := it.Next()
+		if errors.Is(err, iterator.Done) {
+			break // No more rows
+		}
+		if err != nil {
+			return nil, "", database.SpannerErrorToStatus(err)
+		}
+
+		var key string
+		if err := row.ColumnByName("key", &key); err != nil {
+			return nil, "", database.SpannerErrorToStatus(err)
+		}
+
+		resourceRow := &SpannerResourceRow[R]{
+			key:           key,
+			resourceTable: db,
+		}
+
+		// Unmarshal the resource from the row
+		resource := spanner.NullProtoMessage{
+			ProtoMessageVal: &{{ .ImportAlias }}.{{ .ResourceName }}{},
+		}
+		if err := row.ColumnByName("{{ .ResourceName }}", &resource); err != nil {
+			return nil, "", database.SpannerErrorToStatus(err)
+		}
+		if resource.Valid {
+			resourceRow.resource = resource.ProtoMessageVal.(R)
+		}
+
+		// Unmarshal the policy from the row
+		policy := spanner.NullProtoMessage{
+			ProtoMessageVal: &iampb.Policy{},
+		}
+		if err := row.ColumnByName("Policy", &policy); err != nil {
+			return nil, "", database.SpannerErrorToStatus(err)
+		}
+		if policy.Valid {
+			resourceRow.policy = policy.ProtoMessageVal.(*iampb.Policy)
+		}
+
+		resourceRows = append(resourceRows, resourceRow)
+	}
+
+	// If less than the limit is returned, there are more rows to read
+	// TODO: Find a better way to determine if there are more rows to read.
+	//  The current logic is flawed. It assume that if the number of rows returned is
+	//  equal to the limit, there are more rows to read. This is not always the case.
+	//  What if the final set of rows returned is exactly equal to the limit? For example,
+	//  given a limit of 100 and total rows are 400, the fourth set of rows returned will
+	//  be exactly 100 rows. The current logic will assume there are more rows to read.
+	var nextPageToken string
+	if len(resourceRows) == limit {
+		offsetStr := fmt.Sprintf("%v", offset+int64(len(resourceRows)))
+		nextPageToken = base64.StdEncoding.EncodeToString([]byte(offsetStr))
+	}
+
+	return resourceRows, nextPageToken, nil
+}
+
+func (db *{{ .CollectionId }}Table[R]) Stream(ctx context.Context, parent string, pageSize int32, pageToken string, filter string, orderBy string) (*database.StreamResponse[database.ResourceRow[R]], error) {
+	statement := spanner.NewStatement(fmt.Sprintf("SELECT `key`,`{{ .ResourceName }}`,`Policy` FROM %s", db.tableName))
+
+	if parent != "" {
+		statement.SQL += fmt.Sprintf(" WHERE STARTS_WITH(%s,@parent)", "key")
+		statement.Params["parent"] = parent
+	}
+
+	// Append filter to the statement
+	if filter != "" {
+		filterStmt, err := db.filterParser.Parse(filter)
+		if err != nil {
+			return nil, err
+		}
+
+		// If the parent is not empty, we need to add an AND condition
+		if parent != "" {
+			statement.SQL += " AND "
+		} else {
+			// If the parent is empty, we start with WHERE
+			statement.SQL += " WHERE "
+		}
+
+		// Append the filter SQL and parameters
+		statement.SQL += filterStmt.SQL
+		for k, v := range filterStmt.Params {
+			statement.Params[k] = v
+		}
+	}
+
+	// Add sorting conditions if provided
+	// Add sorting conditions if provided
+	if orderBy != "" {
+		order, err := ordering.NewOrder(orderBy)
+		if err != nil {
+			return nil, err
+		}
+		sortOrder := order.SortOrder()
+
+		statement.SQL += " ORDER BY "
+
+		sortColumns := make([]string, 0, len(sortOrder))
+		for column, columnOrder := range sortOrder {
+			sortColumns = append(sortColumns, fmt.Sprintf("%s %s", column, columnOrder.String()))
+		}
+
+		statement.SQL += strings.Join(sortColumns, ", ")
+	}
+	// Add limit if provided
+	limit := 100
+	if pageSize > 0 {
+		limit = int(math.Min(float64(pageSize), float64(limit)))
+	}
+	statement.SQL += fmt.Sprintf(" LIMIT %v", limit)
+
+	// Add offset if page token is provided
+	var offset int64
+	if pageToken != "" {
+		offsetBytes, err := base64.StdEncoding.DecodeString(pageToken)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "decode page token: %s", err.Error())
+		}
+
+		offset, err = strconv.ParseInt(string(offsetBytes), 10, 64)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "parse page token: %s", err.Error())
+		}
+		statement.SQL += fmt.Sprintf(" OFFSET %v", offset)
+	}
+
+	res := database.NewStreamResponse[database.ResourceRow[R]]()
+	go func() {
+		it := db.client.Single().Query(ctx, statement)
+		defer it.Stop()
+
+		// Iterate over the results and construct ResourceRows
+		for {
+			row, err := it.Next()
+			if errors.Is(err, iterator.Done) {
+				break // No more rows
+			}
+			if err != nil {
+				res.SetError(database.SpannerErrorToStatus(err))
+				return
+			}
+
+			var key string
+
+			if err := row.ColumnByName("key", &key); err != nil {
+				res.SetError(database.SpannerErrorToStatus(err))
+				return
+			}
+
+			resourceRow := &SpannerResourceRow[R]{
+				key:           key,
+				resourceTable: db,
+			}
+
+			// Unmarshal the resource from the row
+			resource := spanner.NullProtoMessage{
+				ProtoMessageVal: &{{ .ImportAlias }}.{{ .ResourceName }}{},
+			}
+			if err := row.ColumnByName("{{ .ResourceName }}", &resource); err != nil {
+				res.SetError(database.SpannerErrorToStatus(err))
+				return
+			}
+			if resource.Valid {
+				resourceRow.resource = resource.ProtoMessageVal.(R)
+			}
+
+			// Unmarshal the policy from the row
+			policy := spanner.NullProtoMessage{
+				ProtoMessageVal: &iampb.Policy{},
+			}
+			if err := row.ColumnByName("Policy", &policy); err != nil {
+				res.SetError(database.SpannerErrorToStatus(err))
+				return
+			}
+			if policy.Valid {
+				resourceRow.policy = policy.ProtoMessageVal.(*iampb.Policy)
+			}
+
+			res.AddItem(resourceRow)
+		}
+
+		// Wait for wg
+		res.Wait()
+		// Close channel
+		res.Close()
+	}()
+
+	return res, nil
+}
+
+func (db *{{ .CollectionId }}Table[R]) Query(ctx context.Context, pageSize int32, pageToken string, filter string, orderBy string) ([]database.ResourceRow[R], string, error) {
+	statement := spanner.NewStatement(fmt.Sprintf("SELECT `key`,`{{ .ResourceName }}`,`Policy` FROM %s", db.tableName))
+
+	// Append filter to the statement
+	if filter != "" {
+		filterStmt, err := db.filterParser.Parse(filter)
+		if err != nil {
+			return nil, "", err
+		}
+
+		// Append the filter SQL and parameters
+		statement.SQL += " WHERE " + filterStmt.SQL
+		for k, v := range filterStmt.Params {
+			statement.Params[k] = v
+		}
+	}
+
+	// Add sorting conditions if provided
+	if orderBy != "" {
+		order, err := ordering.NewOrder(orderBy)
+		if err != nil {
+			return nil, "", err
+		}
+		sortOrder := order.SortOrder()
+
+		statement.SQL += " ORDER BY "
+
+		sortColumns := make([]string, 0, len(sortOrder))
+		for column, columnOrder := range sortOrder {
+			sortColumns = append(sortColumns, fmt.Sprintf("%s %s", column, columnOrder.String()))
+		}
+
+		statement.SQL += strings.Join(sortColumns, ", ")
+	}
+	// Add limit if provided
+	limit := 100
+	if pageSize > 0 {
+		limit = int(math.Min(float64(pageSize), float64(limit)))
+	}
+	statement.SQL += fmt.Sprintf(" LIMIT %v", limit)
+
+	// Add offset if page token is provided
+	var offset int64
+	if pageToken != "" {
+		offsetBytes, err := base64.StdEncoding.DecodeString(pageToken)
+		if err != nil {
+			return nil, "", status.Errorf(codes.Internal, "decode page token: %s", err.Error())
+		}
+		offset, err = strconv.ParseInt(string(offsetBytes), 10, 64)
+		if err != nil {
+			return nil, "", status.Errorf(codes.Internal, "parse page token: %s", err.Error())
+		}
+		statement.SQL += fmt.Sprintf(" OFFSET %v", offset)
+	}
+
+	it := db.client.Single().Query(ctx, statement)
+	defer it.Stop()
+
+	var resourceRows []database.ResourceRow[R]
+	for {
+		row, err := it.Next()
+		if errors.Is(err, iterator.Done) {
+			break // No more rows
+		}
+		if err != nil {
+			return nil, "", database.SpannerErrorToStatus(err)
+		}
+
+		var key string
+		if err := row.ColumnByName("key", &key); err != nil {
+			return nil, "", database.SpannerErrorToStatus(err)
+		}
+
+		resourceRow := &SpannerResourceRow[R]{
+			key:           key,
+			resourceTable: db,
+		}
+
+		// Unmarshal the resource from the row
+		resource := spanner.NullProtoMessage{
+			ProtoMessageVal: &{{ .ImportAlias }}.{{ .ResourceName }}{},
+		}
+		if err := row.ColumnByName("{{ .ResourceName }}", &resource); err != nil {
+			return nil, "", database.SpannerErrorToStatus(err)
+		}
+		if resource.Valid {
+			resourceRow.resource = resource.ProtoMessageVal.(R)
+		}
+
+		// Unmarshal the policy from the row
+		policy := spanner.NullProtoMessage{
+			ProtoMessageVal: &iampb.Policy{},
+		}
+		if err := row.ColumnByName("Policy", &policy); err != nil {
+			return nil, "", database.SpannerErrorToStatus(err)
+		}
+		if policy.Valid {
+			resourceRow.policy = policy.ProtoMessageVal.(*iampb.Policy)
+		}
+
+		resourceRows = append(resourceRows, resourceRow)
+	}
+
+	// If less than the limit is returned, there are more rows to read
+	// TODO: Find a better way to determine if there are more rows to read.
+	//  The current logic is flawed. It assume that if the number of rows returned is
+	//  equal to the limit, there are more rows to read. This is not always the case.
+	//  What if the final set of rows returned is exactly equal to the limit? For example,
+	//  given a limit of 100 and total rows are 400, the fourth set of rows returned will
+	//  be exactly 100 rows. The current logic will assume there are more rows to read.
+	var nextPageToken string
+	if len(resourceRows) == limit {
+		offsetStr := fmt.Sprintf("%v", offset+int64(len(resourceRows)))
+		nextPageToken = base64.StdEncoding.EncodeToString([]byte(offsetStr))
+	}
+
+	return resourceRows, nextPageToken, nil
+}
+
+func (db *{{ .CollectionId }}Table[R]) Delete(ctx context.Context, name string) error {
+	rowKey := spanner.Key{name}
+
+	// Create a mutation to delete the row
+	mutation := spanner.Delete(db.tableName, rowKey)
+
+	// Apply the mutation to Spanner
+	if _, err := db.client.Apply(ctx, []*spanner.Mutation{mutation}); err != nil {
+		return database.SpannerErrorToStatus(err)
+	}
+
+	return nil
+}
+
+func (db *{{ .CollectionId }}Table[R]) BatchDelete(ctx context.Context, names []string) error {
+	if len(names) == 0 {
+		return nil
+	}
+
+	// Create a slice of keys for the batch delete
+	keySets := make([]spanner.KeySet, len(names))
+	for i, name := range names {
+		keySets[i] = spanner.Key{name}
+	}
+
+	// Create a mutation to delete the rows
+	mutation := spanner.Delete(db.tableName, spanner.KeySets(keySets...))
+
+	// Apply the mutation to Spanner
+	if _, err := db.client.Apply(ctx, []*spanner.Mutation{mutation}); err != nil {
+		return database.SpannerErrorToStatus(err)
+	}
+
+	return nil
+}

@@ -1,0 +1,100 @@
+func (s *{{ .Service }}ServerType) Stream{{ .ResourceNamePlural }}(req *{{ .ImportAlias }}.Stream{{ .ResourceNamePlural }}Request, stream {{ .ImportAlias }}.{{ .Service }}_Stream{{ .ResourceNamePlural }}Server) error {
+	ctx := stream.Context()
+	{{ if .HasPolicies }}
+	// Create new IAM authorizer
+	az, ctx, err := Iam.NewAuthorizer(ctx)
+	if err != nil {
+		return status.Errorf(codes.Internal, "failed to create authorizer: %s", err.Error())
+	}
+	// Add user's policy to the authorizer
+	az.AddIdentityPolicy()
+    {{ end }}
+
+	{{ if .HasParent }}
+	// Validate the parent resource
+	validator := validation.NewValidator()
+    validator.String("parent", req.GetParent()).IsPopulated().Matches(regex.{{ .ParentResourceName }})
+	if err := validator.Validate(); err != nil {
+		return status.Error(codes.InvalidArgument, err.Error())
+	}
+	{{ end }}
+
+	{{ if .HasPolicies }}
+    {{ if .HasParent }}
+	// Get the parent policy
+	parentPolicy, err := s.GetIamPolicy(ctx, &iampb.GetIamPolicyRequest{
+		Resource: req.GetParent(),
+	})
+	if err != nil && status.Code(err) != codes.NotFound {
+		return err
+	}
+	// Add parent policy to the authorizer
+	az.AddPolicy(parentPolicy)
+    {{ end }}
+	if err = az.AuthorizeRpc(); err != nil {
+		return err
+	}
+    {{ end }}
+
+	// Read mask
+	readMask := req.GetReadMask()
+
+	// If read mask is not provided, use view settings
+	// If the view is not set, default to BASIC view
+	if len(readMask.GetPaths()) == 0 {
+		var err error
+		readMask, err = fieldmaskpb.New(&{{ .ImportAlias }}.{{ .ResourceName }}{}, "name", "etag")
+		if err != nil {
+			return status.Errorf(codes.InvalidArgument, "invalid field mask: %s", err.Error())
+		}
+		// If the view is FULL, no read mask is applied
+		if req.GetView() == {{ .ImportAlias }}.{{ .ResourceName }}View_{{ .ResourceNameUppercase }}_VIEW_FULL {
+			readMask.Paths = []string{}
+		}
+	}
+
+	// Filter by parent resource if applicable
+	var parentFilter string
+	{{ if .HasParent }}
+    parentFilter = req.GetParent()
+	{{ end }}
+	// Stream resources from the database
+	rowsIt, err := db.{{ .ResourceNamePlural }}.Stream(ctx, parentFilter, 0, "", req.GetFilter(), req.GetOrderBy())
+	if err != nil {
+		return err
+	}
+
+	for {
+		row, err := rowsIt.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+
+		{{ if .HasPolicies }}
+		// Check if the requester has access to this resource
+		if !az.HasAccess({{ .ImportAlias }}.{{ .Service }}_Get{{ .ResourceName }}_FullMethodName, row.GetPolicy()) {
+			continue
+		}
+		{{ end }}
+
+		// If the resource is deleted and the request does not show deleted resources, skip it
+		if !req.GetShowDeleted() && row.GetResource().GetDeleteTime() != nil {
+			continue
+		}
+
+		// Apply read mask to the row
+		if err := row.ApplyReadMask(readMask); err != nil {
+			return err
+		}
+
+		// Send the resource to the stream
+		if err := stream.Send(row.GetResource()); err != nil {
+			return status.Errorf(codes.Internal, "failed to send resource: %s", err.Error())
+		}
+	}
+
+	return nil
+}

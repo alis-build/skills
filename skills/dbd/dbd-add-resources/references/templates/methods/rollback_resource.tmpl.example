@@ -1,0 +1,55 @@
+func (s *{{ .Service }}ServerType) Rollback{{ .ResourceName }}(ctx context.Context, req *pb.Rollback{{ .ResourceName }}Request) (*pb.{{ .ResourceName }}Revision, error) {
+    {{ if .HasPolicies }}
+	// Create new IAM authorizer
+	az, ctx, err := Iam.NewAuthorizer(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to create authorizer: %s", err.Error())
+	}
+	// Add user's policy to the authorizer
+	az.AddIdentityPolicy()
+    {{ end }}
+
+	// VALIDATION
+	validator := validation.NewValidator()
+	validator.String("name", req.GetName()).IsPopulated().Matches(regex.{{ .ResourceName }}Revision)
+	if err := validator.Validate(); err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	{{ .ResourceId }}RevisionNamer, err := namers.{{ .ResourceName }}Revision(req.GetName())
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid parent resource name: %s", err.Error())
+	}
+
+	// Read the resource from the database
+	row, err := db.{{ .ResourceNamePlural }}.Read(ctx, {{ .ResourceId }}RevisionNamer.{{ .ResourceName }}())
+	if err != nil {
+		return nil, err
+	}
+    {{ if .HasPolicies }}
+	az.AddPolicy(row.GetPolicy())
+
+	if err = az.AuthorizeRpc(); err != nil {
+		return nil, err
+	}
+    {{ end }}
+
+	// Read the revision from the database
+	revisionRow, err := db.{{ .ResourceName }}Revisions.Read(ctx, req.GetName())
+	if err != nil {
+		return nil, err
+	}
+
+    // Update the current resource with the revision's snapshot 
+	row.SetResource(revisionRow.GetResource().GetSnapshot())
+
+    // Set the resource name
+	row.GetResource().UpdateTime = timestamppb.Now()
+
+    // Update the resource in the database
+	if err := row.Update(ctx); err != nil {
+		return nil, err
+	}
+
+	return revisionRow.GetResource(), nil
+}

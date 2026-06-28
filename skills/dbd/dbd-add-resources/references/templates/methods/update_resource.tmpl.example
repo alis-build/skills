@@ -1,0 +1,108 @@
+func (s *{{ .Service }}ServerType) Update{{ .ResourceName }}(ctx context.Context, req *{{ .ImportAlias }}.Update{{ .ResourceName }}Request) (*{{ .ImportAlias }}.{{ .ResourceName }}, error) {
+	{{ if .HasPolicies }}
+	// Create new IAM authorizer
+	az, ctx, err := Iam.NewAuthorizer(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to create authorizer: %s", err.Error())
+	}
+    // Add user's policy to the authorizer
+	az.AddIdentityPolicy()
+    {{ end }}
+
+	// VALIDATION
+	validator := validation.NewValidator()
+	validator.MessageIsPopulated("{{ .ResourceId }}", req.Get{{ .ResourceName }}() != nil)
+	validator.MessageIsPopulated("update_mask", req.GetUpdateMask() != nil)
+	validator.StringList("update_mask.paths", req.GetUpdateMask().GetPaths()).IsPopulated()
+	validator.String("name", req.Get{{ .ResourceName }}().GetName()).IsPopulated().Matches(regex.{{ .ResourceName }})
+	if err := validator.Validate(); err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	{{ if .HasPolicies }}
+    {{ if .HasParent }}
+	// Get the parent policy
+	{{ .ResourceId }}Namer, err := namers.{{ .ResourceName }}(req.Get{{ .ResourceName }}().GetName())
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid parent resource name: %s", err.Error())
+	}
+	parentPolicy, err := s.GetIamPolicy(ctx, &iampb.GetIamPolicyRequest{
+		Resource: {{ .ResourceId }}Namer.{{ .ParentResourceName }}(),
+	})
+	if err != nil && status.Code(err) != codes.NotFound {
+		return nil, err
+	}
+	// Add parent policy to the authorizer
+	az.AddPolicy(parentPolicy)
+	{{ end }}
+    {{ end }}
+
+	// Read the existing resource from the database
+	row, err := db.{{ .ResourceNamePlural }}.Read(ctx, req.Get{{ .ResourceName }}().GetName())
+	if err != nil {
+		if !errors.Is(err, sproto.ErrNotFound{}) || !req.GetAllowMissing() {
+			return nil, err
+		}
+	}
+
+    // If the resource does not exist and allow_missing is true, create it
+	if row == nil || row.GetResource() == nil {
+		return s.Create{{ .ResourceName }}(ctx, &{{ .ImportAlias }}.Create{{ .ResourceName }}Request{
+			{{ .ResourceName }}: req.Get{{ .ResourceName }}(),
+		})
+	}
+
+    {{ if .HasPolicies }}
+	// Check access
+	az.AddPolicy(row.GetPolicy())
+	if err = az.AuthorizeRpc(); err != nil {
+		return nil, err
+	}
+    {{ end }}
+
+	// Validate update mask
+	if !req.GetUpdateMask().IsValid(&{{ .ImportAlias }}.{{ .ResourceName }}{}) {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid update mask")
+	}
+
+	// Ensure delete_time is not updated
+	for _, path := range req.GetUpdateMask().GetPaths() {
+		if strings.HasPrefix(path, "delete_time") {
+			return nil, status.Errorf(codes.FailedPrecondition, "delete_time is output only")
+		}
+	}
+
+	// Ensure etags match
+	if row.GetResource().GetEtag() != req.Get{{ .ResourceName }}().GetEtag() {
+		return nil, status.Errorf(codes.FailedPrecondition, "etag does not match")
+	}
+
+	// Merge fields
+	row.Merge(req.Get{{ .ResourceName }}(), req.GetUpdateMask().GetPaths()...)
+
+	// Set new update time
+	row.GetResource().UpdateTime = timestamppb.Now()
+
+	// Set etag
+	row.GetResource().Etag = uuid.New().String()
+
+	// Write the updated resource back to the database
+	err = row.Update(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to update resource: %s", err.Error())
+	}
+
+	{{ if .HasRevisions }}
+	// Create a new revision for the resource
+	if _, err := s.Create{{ .ResourceName }}Revision(ctx, &pb.Create{{ .ResourceName }}RevisionRequest{
+		Parent: row.GetResource().GetName(),
+		{{ .ResourceName }}Revision: &pb.{{ .ResourceName }}Revision{
+			Snapshot: row.GetResource(),
+		},
+	}); err != nil {
+		return nil, err
+	}
+	{{ end }}
+
+	return row.GetResource(), nil
+}

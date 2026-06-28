@@ -1,0 +1,87 @@
+func (s *{{ .Service }}ServerType) Create{{ .ResourceName }}(ctx context.Context, req *{{ .ImportAlias }}.Create{{ .ResourceName }}Request) (*{{ .ImportAlias }}.{{ .ResourceName }}, error) {
+    {{ if .HasPolicies }}
+	// Create new IAM authorizer
+	az, ctx, err := Iam.NewAuthorizer(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to create authorizer: %s", err.Error())
+	}
+    // Add user's policy to the authorizer
+	az.AddIdentityPolicy()
+    {{ end }}
+
+    // VALIDATION
+	validator := validation.NewValidator()
+    {{ if .HasParent }}
+    validator.String("parent", req.GetParent()).IsPopulated().Matches(regex.{{ .ParentResourceName }})
+    {{ end }}
+	validator.MessageIsPopulated("{{ .ResourceId }}", req.Get{{ .ResourceName }}() != nil)
+	// TODO: Add more validation rules here
+	if err := validator.Validate(); err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	{{ if .HasPolicies }}
+    {{ if .HasParent }}
+	// Get the parent policy
+	parentPolicy, err := s.GetIamPolicy(ctx, &iampb.GetIamPolicyRequest{
+		Resource: req.GetParent(),
+	})
+	if err != nil && status.Code(err) != codes.NotFound {
+		return nil, err
+	}
+	// Add parent policy to the authorizer
+	az.AddPolicy(parentPolicy)
+    {{ end }}
+	if err = az.AuthorizeRpc(); err != nil {
+		return nil, err
+	}
+    {{ end }}
+
+	// Set the resource name
+	{{ if .HasParent }}
+    	{{ if .UserProvidedId }}
+			req.Get{{ .ResourceName }}().Name = req.GetParent() + "/{{ .CollectionId }}/" + req.Get{{ .ResourceName }}Id()
+		{{ else }}
+			// Generate a new UUID for the resource
+			id := uuid.New().String()
+			req.Get{{ .ResourceName }}().Name = req.GetParent() + "/{{ .CollectionId }}/" + id
+		{{ end }}
+	{{ else }}
+		{{ if .UserProvidedId }}
+			req.Get{{ .ResourceName }}().Name = "{{ .CollectionId }}/" + req.Get{{ .ResourceName }}Id()
+		{{ else }}
+			// Generate a new UUID for the resource
+			id := uuid.New().String()
+			req.Get{{ .ResourceName }}().Name = "{{ .CollectionId }}/" + id
+		{{ end }}
+	{{ end }}
+	// Set resource etag
+	req.Get{{ .ResourceName }}().Etag = uuid.New().String()
+	// Set the resource create and update time
+	req.Get{{ .ResourceName }}().CreateTime = timestamppb.Now()
+	req.Get{{ .ResourceName }}().UpdateTime = timestamppb.Now()
+
+	// Set the requester as the owner of the resource
+    var policy *iampb.Policy
+    {{ if .HasPolicies }}
+	// TODO: Adjust the policy based on your requirements
+	policy = &iampb.Policy{
+		Bindings: []*iampb.Binding{
+			{
+				Role: roles.{{ .ResourceName }}Owner.Name,
+				Members: []string{
+					az.Identity.PolicyMember(),
+				},
+			},
+		},
+		Etag: []byte(uuid.New().String()),
+	}
+    {{ end }}
+
+	// Create the resource in the database
+	if _, err := db.{{ .ResourceNamePlural }}.Create(ctx, req.Get{{ .ResourceName }}().GetName(), req.Get{{ .ResourceName }}(), policy); err != nil {
+		return nil, err
+	}
+
+	return req.Get{{ .ResourceName }}(), nil
+}

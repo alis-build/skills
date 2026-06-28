@@ -1,0 +1,30 @@
+package main
+
+import (
+	"context"
+
+	"go.alis.build/alog"
+	"github.com/alis-exchange/go-alis-build/iam/v2"
+	"{{ .Package }}/internal/roles"
+)
+
+var Iam *iam.IAM
+
+func init() {
+
+	var err error
+	Iam, err = iam.New([]*iam.Role{
+		roles.Open,
+		{{ range .Resources }}
+        roles.{{ .ResourceName }}Admin,
+        roles.{{ .ResourceName }}Owner,
+        roles.{{ .ResourceName }}User,
+        roles.{{ .ResourceName }}Viewer,
+        {{ end }}
+	})
+	if err != nil {
+		alog.Fatalf(context.Background(), "failed to create IAM: %v", err)
+	}
+
+	// optional: use Iam.WithMemberResolver to utilize IAM groups
+}

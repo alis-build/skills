@@ -1,0 +1,33 @@
+FROM golang:latest AS builder
+WORKDIR /app
+
+# Configure artifact registry auth
+ENV GOPROXY=proxy.golang.org
+RUN go run github.com/GoogleCloudPlatform/artifact-registry-go-tools/cmd/auth@v0.4.0 add-locations --locations={{- range .Regions }}{{ . }},{{- end }}europe-west1
+
+# Copy local code to the container image
+COPY . ./
+
+# Refresh auth token to authenticate with artifact registry
+RUN go run github.com/GoogleCloudPlatform/artifact-registry-go-tools/cmd/auth@v0.4.0 refresh
+
+# Setup GOPROXY & GONOSUMDB based on the internal and consumer stubs used in this go module
+ENV GOPROXY={{- range .GoProxies }}{{ . }},{{- end }}https://europe-west1-go.pkg.dev/alis-org-777777/openprotos-go,https://proxy.golang.org,direct
+ENV GONOSUMDB={{- range .GoNoSumDbs }}{{ . }},{{- end }}open.alis.services/protobuf
+
+# Build the binary.
+RUN go build -mod=readonly -v -o server
+
+# Use the official Debian slim image for a lean production container.
+# https://hub.docker.com/_/debian
+# https://docs.docker.com/develop/develop-images/multistage-build/#use-multi-stage-builds
+FROM debian:bookworm-slim
+RUN set -x && apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy the binary to the production image from the builder stage.
+COPY --from=builder /app/server /app/server
+
+# Run the web service on container startup.
+CMD ["/app/server"]

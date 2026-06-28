@@ -1,0 +1,125 @@
+func (s *{{ .Service }}ServerType) BatchCreate{{ .ResourceNamePlural }}(ctx context.Context, req *{{ .ImportAlias }}.BatchCreate{{ .ResourceNamePlural }}Request) (*{{ .ImportAlias }}.BatchCreate{{ .ResourceNamePlural }}Response, error) {
+	{{ if .HasPolicies }}
+	// Create new IAM authorizer
+	az, ctx, err := Iam.NewAuthorizer(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to create authorizer: %s", err.Error())
+	}
+	// Add user's policy to the authorizer
+	az.AddIdentityPolicy()
+    {{ end }}
+
+	// VALIDATION
+	validator := validation.NewValidator()
+	validator.MessageIsPopulated("requests", req.GetRequests() != nil)
+	{{ if .HasParent }}
+	validator.String("parent", req.GetParent()).IsPopulated().Matches(regex.{{ .ParentResourceName }})
+	{{ end }}
+	for i, request := range req.GetRequests() {
+		validator.MessageIsPopulated(fmt.Sprintf("requests[%d]", i), request != nil)
+		validator.MessageIsPopulated(fmt.Sprintf("requests[%d].{{ .ResourceId }}", i), request.Get{{ .ResourceName }}() != nil)
+		{{ if .HasParent }}
+		validator.String(fmt.Sprintf("requests[%d].parent", i), request.GetParent()).IsPopulated().Matches(regex.{{ .ParentResourceName }})
+		{{ end }}
+		// TODO: Add more validation rules here
+	}
+    // TODO: Add more validation rules here
+	if err := validator.Validate(); err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	{{ if .HasParent }}
+	// Ensure all requests have the same parent
+	for _, request := range req.GetRequests() {
+	 	if request.GetParent() != req.GetParent() {
+			return nil, status.Errorf(codes.InvalidArgument, "all requests must have the same parent: %s", req.GetParent())
+		}
+	}
+	{{ end }}
+
+    {{ if .HasPolicies }}
+    {{ if .HasParent }}
+	// Get the parent policy
+	parentPolicy, err := s.GetIamPolicy(ctx, &iampb.GetIamPolicyRequest{
+		Resource: req.GetParent(),
+	})
+	if err != nil && status.Code(err) != codes.NotFound {
+		return nil, err
+	}
+	// Add parent policy to the authorizer
+	az.AddPolicy(parentPolicy)
+    {{ end }}
+	if err = az.AuthorizeRpc(); err != nil {
+		return nil, err
+	}
+    {{ end }}
+
+	// Create a slice to hold the resources and policies
+	var resources []*{{ .ImportAlias }}.{{ .ResourceName }}
+	var policies []*iampb.Policy
+
+    // Iterate over the requests and prepare the resources and policies
+	for _, request := range req.GetRequests() {
+        // Set the resource name
+		{{ if .HasParent }}
+			{{ if .UserProvidedId }}
+				request.Get{{ .ResourceName }}().Name = req.GetParent() + "/{{ .CollectionId }}/" + request.Get{{ .ResourceName }}Id()
+			{{ else }}
+				// Generate a new UUID for the resource
+				id := uuid.New().String()
+				request.Get{{ .ResourceName }}().Name = req.GetParent() + "/{{ .CollectionId }}/" + id
+			{{ end }}
+		{{ else }}
+			{{ if .UserProvidedId }}
+				request.Get{{ .ResourceName }}().Name = "{{ .CollectionId }}/" + request.Get{{ .ResourceName }}Id()
+			{{ else }}
+				// Generate a new UUID for the resource
+				id := uuid.New().String()
+				request.Get{{ .ResourceName }}().Name = "{{ .CollectionId }}/" + id
+			{{ end }}
+		{{ end }}
+		// Set resource etag
+		request.Get{{ .ResourceName }}().Etag = uuid.New().String()
+        // Set the resource create and update time
+		request.Get{{ .ResourceName }}().CreateTime = timestamppb.Now()
+		request.Get{{ .ResourceName }}().UpdateTime = timestamppb.Now()
+
+		// Set the requester as the owner of the resource
+        var policy *iampb.Policy
+        {{ if .HasPolicies }}
+		// TODO: Adjust the policy based on your requirements
+		policy = &iampb.Policy{
+			Bindings: []*iampb.Binding{
+				{
+					Role: roles.{{ .ResourceName }}Owner.Name,
+					Members: []string{
+						az.Identity.PolicyMember(),
+					},
+				},
+			},
+			Etag: []byte(uuid.New().String()),
+		}
+        {{ end }}
+
+		// Append the resource and policy to the respective lists
+		resources = append(resources, request.Get{{ .ResourceName }}())
+		policies = append(policies, policy)
+	}
+
+	// Get the names of the resources to be created
+	resourceNames := utils.Transform(req.GetRequests(), func(request *{{ .ImportAlias }}.Create{{ .ResourceName }}Request) string {
+		return request.Get{{ .ResourceName }}().GetName()
+	})
+
+	// Write the resources to the database
+	rows, err := db.{{ .ResourceNamePlural }}.BatchCreate(ctx, resourceNames, resources, policies)
+	if err != nil {
+		return nil, err
+	}
+
+	return &{{ .ImportAlias }}.BatchCreate{{ .ResourceNamePlural }}Response{
+		{{ .ResourceNamePlural }}: utils.Transform(rows, func(row database.ResourceRow[*{{ .ImportAlias }}.{{ .ResourceName }}]) *{{ .ImportAlias }}.{{ .ResourceName }} {
+			return row.GetResource()
+		}),
+	}, nil
+}

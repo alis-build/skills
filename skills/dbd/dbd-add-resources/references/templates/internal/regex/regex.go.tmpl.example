@@ -1,0 +1,60 @@
+package regex
+
+import (
+	"fmt"
+	"regexp"
+)
+
+var (
+	{{ range .Resources }}
+	{{ .ResourceName }}Id     = newRegex(`{{ .ResourceIdRegex }}`)
+	{{ .ResourceName }}       = join({{ if .HasParent }}{{ .ParentResourceName }}{{ else }}""{{ end }}, "{{ .CollectionId }}", {{ .ResourceName }}Id)
+	{{ .ResourceName }}RegExp = regexp.MustCompile({{ .ResourceName }})
+	{{ if .HasRevisions }}
+	{{ .ResourceName }}RevisionId     = newRegex(`{{ .ResourceIdRegex }}`)
+	{{ .ResourceName }}Revision       = join({{ .ResourceName }}, "revisions", {{ .ResourceName }}RevisionId)
+	{{ .ResourceName }}RevisionRegExp = regexp.MustCompile({{ .ResourceName }}Revision)
+	{{ end }}
+	{{ end }}
+)
+
+// join joins the parentRgx, collectionIdentifierRgx and idRgx to form a new regex
+// e.g. join("[a-z]", "products", "[a-z]{2}") will return ^[a-z]/products/[a-z]{2}$
+func join(parentRgx string, collectionIdentifierRgx string, idRgx string) string {
+	parentRgx = stripStartAndEnd(parentRgx)
+	collectionIdentifierRgx = stripStartAndEnd(collectionIdentifierRgx)
+	idRgx = stripStartAndEnd(idRgx)
+	fullParent := collectionIdentifierRgx
+	if len(parentRgx) > 0 {
+		fullParent = fmt.Sprintf("%s/%s", parentRgx, collectionIdentifierRgx)
+	}
+	return newRegex(fmt.Sprintf("%s/%s", fullParent, idRgx))
+}
+
+// newRegex just wraps the given regex with ^ and $
+func newRegex(rgx string) string {
+	if rgx[0] != '^' {
+		rgx = "^" + rgx
+	}
+	if rgx[len(rgx)-1] != '$' {
+		rgx = rgx + "$"
+	}
+	return rgx
+}
+
+// stripStartAndEnd removes the ^ and $ from the start and end of the string respectively
+func stripStartAndEnd(s string) string {
+	if len(s) == 0 {
+		return s
+	}
+	if s[0] == '^' {
+		s = s[1:]
+	}
+	if len(s) == 0 {
+		return s
+	}
+	if s[len(s)-1] == '$' {
+		s = s[:len(s)-1]
+	}
+	return s
+}

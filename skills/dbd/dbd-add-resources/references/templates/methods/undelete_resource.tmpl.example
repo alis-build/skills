@@ -1,0 +1,80 @@
+func (s *{{ .Service }}ServerType) Undelete{{ .ResourceName }}(ctx context.Context, req *{{ .ImportAlias }}.Undelete{{ .ResourceName }}Request) (*{{ .ImportAlias }}.{{ .ResourceName }}, error) {
+	{{ if .HasPolicies }}
+	// Create new IAM authorizer
+	az, ctx, err := Iam.NewAuthorizer(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to create authorizer: %s", err.Error())
+	}
+	// Add user's policy to the authorizer
+	az.AddIdentityPolicy()
+    {{ end }}
+
+	// VALIDATION
+	validator := validation.NewValidator()
+	validator.String("name", req.GetName()).IsPopulated().Matches(regex.{{ .ResourceName }})
+	if err := validator.Validate(); err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	{{ if .HasPolicies }}
+    {{ if .HasParent }}
+	// Get the parent policy
+	{{ .ResourceId }}Namer, err := namers.{{ .ResourceName }}(req.GetName())
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid parent resource name: %s", err.Error())
+	}
+	parentPolicy, err := s.GetIamPolicy(ctx, &iampb.GetIamPolicyRequest{
+		Resource: {{ .ResourceId }}Namer.{{ .ParentResourceName }}(),
+	})
+	if err != nil && status.Code(err) != codes.NotFound {
+		return nil, err
+	}
+	// Add parent policy to the authorizer
+	az.AddPolicy(parentPolicy)
+	{{ end }}
+    {{ end }}
+
+	// Read the resource from the database
+	row, err := db.{{ .ResourceNamePlural }}.Read(ctx, req.GetName())
+	if err != nil {
+		return nil, err
+	}
+
+    {{ if .HasPolicies }}
+	// Check access
+	az.AddPolicy(row.GetPolicy())
+	if err = az.AuthorizeRpc(); err != nil {
+		return nil, err
+	}
+    {{ end }}
+
+	// If etag is provided, ensure it matches
+	if req.GetEtag() != "" && req.GetEtag() != row.GetResource().GetEtag() {
+		return nil, status.Errorf(codes.FailedPrecondition, "etag does not match")
+	}
+
+	// Set delete time to nil
+	row.GetResource().DeleteTime = nil
+
+	// Set etag
+	row.GetResource().Etag = uuid.New().String()
+
+	// Write the updated resource back to the database
+	if err = row.Update(ctx); err != nil {
+		return nil, err
+	}
+
+	{{ if .HasRevisions }}
+	// Create a new revision for the resource
+	if _, err := s.Create{{ .ResourceName }}Revision(ctx, &pb.Create{{ .ResourceName }}RevisionRequest{
+		Parent: row.GetResource().GetName(),
+		{{ .ResourceName }}Revision: &pb.{{ .ResourceName }}Revision{
+			Snapshot: row.GetResource(),
+		},
+	}); err != nil {
+		return nil, err
+	}
+	{{ end }}
+
+	return row.GetResource(), nil
+}

@@ -1,0 +1,64 @@
+package db
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"strings"
+
+	"go.alis.build/alog"
+    {{ range .Imports }}
+      {{- if .Alias }}{{ .Alias }}{{- end }}{{- if .Alias }}{{ " " }}{{- end }}"{{ .ImportPath }}"
+    {{ end }}
+)
+
+var (
+    {{- range .Resources }}
+    {{ .ResourceNamePlural }} database.ResourceTable[*{{ .ImportAlias }}.{{ .ResourceName }}]
+	{{- if .HasRevisions }}
+	{{ .ResourceName }}Revisions database.ResourceTable[*{{ .ImportAlias }}.{{ .ResourceName }}Revision]
+	{{- end }}
+	{{- end }}
+)
+
+func init() {
+	ctx := context.Background()
+
+	requiredEnvs := []string{
+		"ALIS_OS_PROJECT",
+		"ALIS_MANAGED_SPANNER_PROJECT",
+		"ALIS_MANAGED_SPANNER_INSTANCE",
+		"ALIS_MANAGED_SPANNER_DB",
+	}
+	for _, env := range requiredEnvs {
+		if os.Getenv(env) == "" {
+			alog.Fatalf(ctx, "env %s is required", env)
+		}
+	}
+
+	// Spanner instance and database
+	spannerProject := os.Getenv("ALIS_MANAGED_SPANNER_PROJECT")
+	spannerInstance := os.Getenv("ALIS_MANAGED_SPANNER_INSTANCE")
+	spannerDatabase := os.Getenv("ALIS_MANAGED_SPANNER_DB")
+
+	// Table prefix
+	// Table names are prefixed with the neuron name, replacing dashes with underscores.
+	// This is to ensure that neurons with more than one version can coexist
+	// without table name conflicts.
+	tablePrefix := strings.ReplaceAll(os.Getenv("ALIS_OS_PROJECT"), "-", "_") + "_" + strings.ReplaceAll("{{ .NeuronId }}", "-", "_")
+
+	// Resources
+	var err error
+    {{- range .Resources }}
+	{{ .ResourceNamePlural }}, err = New{{ .ResourceNamePlural }}Table(ctx, spannerProject, spannerInstance, spannerDatabase, fmt.Sprintf("%s_{{ .ResourceNamePlural }}", tablePrefix))
+	if err != nil {
+		alog.Fatalf(ctx, "instantiating {{ .ResourceNamePlural }} table: %v", err)
+	}
+	{{ if .HasRevisions }}
+	{{ .ResourceName }}Revisions, err = New{{ .ResourceName }}RevisionsTable(ctx, spannerProject, spannerInstance, spannerDatabase, fmt.Sprintf("%s_{{ .ResourceName }}Revisions", tablePrefix))
+	if err != nil {
+		alog.Fatalf(ctx, "instantiating {{ .ResourceName }}Revisions table: %v", err)
+	}
+	{{ end }}
+	{{- end }}
+}

@@ -1,0 +1,76 @@
+package main
+
+import (
+	"context"
+	"net"
+	"os"
+	"strconv"
+
+	"go.alis.build/alog"
+	"google.golang.org/grpc"
+    {{ range .Imports }}
+      {{- if .Alias }}{{ .Alias }}{{- end }}{{- if .Alias }}{{ " " }}{{- end }}"{{ .ImportPath }}"
+    {{ end }}
+)
+
+func init() {
+	// Set log level to debug if not running on cloudrun
+	if os.Getenv("K_SERVICE") == "" {
+		alog.SetLevel(alog.LevelDebug)
+	} else {
+		// If on cloudrun, set log level to the value of the environment variable ALOG_LEVEL or to Info if not set
+		logLevel := alog.LevelInfo
+		if os.Getenv("ALOG_LEVEL") != "" {
+			var err error
+			level, err := strconv.Atoi(os.Getenv("ALOG_LEVEL"))
+			if err != nil {
+				alog.Fatalf(context.Background(), "ALOG_LEVEL must be an integer")
+			}
+			logLevel = alog.LogLevel(level)
+		}
+		alog.SetLevel(alog.LogLevel(logLevel))
+	}
+}
+
+func main() {
+	// Create grpc server and register implemented grpc services
+	grpcServer := grpc.NewServer(grpc.UnaryInterceptor(unaryInterceptor), grpc.StreamInterceptor(streamInterceptor))
+
+    {{- range .ImplementedServices }}
+    {{ .ImportAlias }}.Register{{ .Service }}Server(grpcServer, {{ .Service }}Server)
+    {{- end }}
+
+	// Start the server
+	ctx := context.Background()
+	port := ":8080"
+	alog.Notice(ctx, "starting server on "+port)
+	listener, err := net.Listen("tcp", port)
+	if err != nil {
+		alog.Fatalf(ctx, "net.Listen: %v", err.Error())
+	}
+	if err = grpcServer.Serve(listener); err != nil {
+		alog.Fatal(ctx, err.Error())
+	}
+}
+
+// Unary interceptor that validates the request and then calls the handler
+func unaryInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	// Call the handler
+	h, err := handler(ctx, req)
+	if err != nil {
+		alog.Debugf(ctx, "%s", req)
+		alog.Warn(ctx, err.Error())
+	}
+	return h, err
+}
+
+// Stream interceptor that validates the request and then calls the handler
+func streamInterceptor(srv interface{}, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+	// Call the handler
+	err := handler(srv, stream)
+	if err != nil {
+		alog.Debugf(stream.Context(), "%s", stream)
+		alog.Warn(stream.Context(), err.Error())
+	}
+	return err
+}

@@ -1,0 +1,88 @@
+package roles
+
+import (
+    "github.com/alis-exchange/go-alis-build/iam/v2"
+    {{ range .Imports }}
+      {{- if .Alias }}{{ .Alias }}{{- end }}{{- if .Alias }}{{ " " }}{{- end }}"{{ .ImportPath }}"
+    {{ end }}
+)
+
+// TODO: These are auto-generated suggested roles. Make sure to review them and adjust as necessary.
+
+var (
+    Open = &iam.Role{
+        Name: "roles/open",
+        Permissions: []string{
+            {{ range .Resources }}
+            {{ .ImportAlias }}.{{ .Service }}_Create{{ .ResourceName }}_FullMethodName,
+            {{ .ImportAlias }}.{{ .Service }}_List{{ .ResourceNamePlural }}_FullMethodName,
+            {{ .ImportAlias }}.{{ .Service }}_Stream{{ .ResourceNamePlural }}_FullMethodName,
+            {{ .ImportAlias }}.{{ .Service }}_BatchCreate{{ .ResourceNamePlural }}_FullMethodName,
+            {{ .ImportAlias }}.{{ .Service }}_BatchGet{{ .ResourceNamePlural }}_FullMethodName,
+            {{ .ImportAlias }}.{{ .Service }}_BatchUpdate{{ .ResourceNamePlural }}_FullMethodName,
+            {{ .ImportAlias }}.{{ .Service }}_BatchDelete{{ .ResourceNamePlural }}_FullMethodName,
+            {{ .ImportAlias }}.{{ .Service }}_BatchUndelete{{ .ResourceNamePlural }}_FullMethodName,
+            {{ if .HasRevisions }}
+            {{ .ImportAlias }}.{{ .Service }}_Create{{ .ResourceName }}Revision_FullMethodName,
+            {{ .ImportAlias }}.{{ .Service }}_List{{ .ResourceName }}Revisions_FullMethodName,
+            {{ .ImportAlias }}.{{ .Service }}_BatchCreate{{ .ResourceName }}Revisions_FullMethodName,
+            {{ end }}
+            {{ end }}
+        },
+        AllUsers: true,
+    }
+    {{ range .Resources}}
+        {{ .ResourceName }}Admin = &iam.Role{
+            Name: "roles/{{ .ResourceIdCamelCase }}.admin",
+            Permissions: []string{
+                {{ .ImportAlias }}.{{ .Service }}_Get{{ .ResourceName }}_FullMethodName,
+                {{ .ImportAlias }}.{{ .Service }}_Update{{ .ResourceName }}_FullMethodName,
+                {{ .ImportAlias }}.{{ .Service }}_Delete{{ .ResourceName }}_FullMethodName,
+                {{ .ImportAlias }}.{{ .Service }}_Undelete{{ .ResourceName }}_FullMethodName,
+                {{ if .HasRevisions }}
+                {{ .ImportAlias }}.{{ .Service }}_Get{{ .ResourceName }}Revision_FullMethodName,
+                {{ .ImportAlias }}.{{ .Service }}_Update{{ .ResourceName }}Revision_FullMethodName,
+                {{ .ImportAlias }}.{{ .Service }}_Delete{{ .ResourceName }}Revision_FullMethodName,
+                {{ .ImportAlias }}.{{ .Service }}_Rollback{{ .ResourceName }}_FullMethodName,
+                {{ end }}
+            },
+            AllUsers: false,
+        }
+        {{ .ResourceName }}Owner = &iam.Role{
+            Name: "roles/{{ .ResourceIdCamelCase }}.owner",
+            Permissions: []string{
+                {{ .ImportAlias }}.{{ .Service }}_Get{{ .ResourceName }}_FullMethodName,
+                {{ .ImportAlias }}.{{ .Service }}_Update{{ .ResourceName }}_FullMethodName,
+                {{ .ImportAlias }}.{{ .Service }}_Delete{{ .ResourceName }}_FullMethodName,
+                {{ .ImportAlias }}.{{ .Service }}_Undelete{{ .ResourceName }}_FullMethodName,
+                {{ if .HasRevisions }}
+                {{ .ImportAlias }}.{{ .Service }}_Get{{ .ResourceName }}Revision_FullMethodName,
+                {{ .ImportAlias }}.{{ .Service }}_Update{{ .ResourceName }}Revision_FullMethodName,
+                {{ .ImportAlias }}.{{ .Service }}_Delete{{ .ResourceName }}Revision_FullMethodName,
+                {{ .ImportAlias }}.{{ .Service }}_Rollback{{ .ResourceName }}_FullMethodName,
+                {{ end }}
+            },
+            AllUsers: false,
+        }
+        {{ .ResourceName }}User = &iam.Role{
+            Name: "roles/{{ .ResourceIdCamelCase }}.user",
+            Permissions: []string{
+                {{ .ImportAlias }}.{{ .Service }}_Get{{ .ResourceName }}_FullMethodName,
+                {{ if .HasRevisions }}
+                {{ .ImportAlias }}.{{ .Service }}_Get{{ .ResourceName }}Revision_FullMethodName,
+                {{ end }}
+            },
+            AllUsers: false,
+        }
+        {{ .ResourceName }}Viewer = &iam.Role{
+            Name: "roles/{{ .ResourceIdCamelCase }}.viewer",
+            Permissions: []string{
+                {{ .ImportAlias }}.{{ .Service }}_Get{{ .ResourceName }}_FullMethodName,
+                {{ if .HasRevisions }}
+                {{ .ImportAlias }}.{{ .Service }}_Get{{ .ResourceName }}Revision_FullMethodName,
+                {{ end }}
+            },
+            AllUsers: false,
+        }
+    {{ end }}
+)

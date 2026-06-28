@@ -1,0 +1,61 @@
+func (s *{{ .Service }}ServerType) AddIamBindings(ctx context.Context, req *openIam.AddIamBindingsRequest) (*iampb.Policy, error) {
+	// Create new IAM authorizer
+	az, ctx, err := Iam.NewAuthorizer(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to create authorizer: %s", err.Error())
+	}
+	az.AddIdentityPolicy()
+
+	// Get the resource's policy
+	policy, err := s.GetIamPolicy(ctx, &iampb.GetIamPolicyRequest{Resource: req.GetResource()})
+	if err != nil {
+		return nil, err
+	}
+
+	// Check access to Add IAM Bindings
+	az.AddPolicy(policy)
+	err = az.AuthorizeRpc()
+	if err != nil {
+		return nil, err
+	}
+
+	// Add to existing bindings
+	rolesFound := map[string]bool{}
+	for _, principal := range req.GetPrincipals() {
+		for _, binding := range policy.GetBindings() {
+			if slices.Contains(req.GetRoles(), binding.GetRole()) {
+				if !slices.Contains(binding.GetMembers(), principal) {
+					binding.Members = append(binding.GetMembers(), principal)
+				}
+				rolesFound[binding.GetRole()] = true
+			} else if req.GetRemoveFromOtherRoles() {
+				binding.Members = slices.DeleteFunc(binding.GetMembers(), func(e string) bool {
+					return e == principal
+				})
+			}
+		}
+	}
+
+	// Create new bindings for roles that were not found
+	for _, role := range req.GetRoles() {
+		if !rolesFound[role] {
+			policy.Bindings = append(policy.GetBindings(), &iampb.Binding{Role: role, Members: req.GetPrincipals()})
+		}
+	}
+
+	// Set new etag
+	policy.Etag = []byte(uuid.New().String())
+
+	// Write to the database
+    {{- range .Resources }}
+    {{- if .HasPolicies }}
+	if regex.{{ .ResourceName }}RegExp.MatchString(req.GetResource()) {
+		if err = db.{{ .ResourceNamePlural }}.WritePolicy(ctx, req.GetResource(), policy); err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to write policy: %s", err.Error())
+		}
+	}
+    {{- end }}
+    {{- end }}
+
+	return policy, nil
+}

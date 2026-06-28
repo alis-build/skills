@@ -1,0 +1,141 @@
+{{- range .Resources }}
+resource "alis_google_spanner_table" "{{ .ResourceNamePlural }}" {
+  project         = var.ALIS_MANAGED_SPANNER_PROJECT
+  instance        = var.ALIS_MANAGED_SPANNER_INSTANCE
+  database        = var.ALIS_MANAGED_SPANNER_DB
+  name            = "${replace(var.ALIS_OS_PROJECT, "-", "_")}_${replace("{{ .NeuronId }}", "-", "_")}_{{ .ResourceNamePlural }}"
+  prevent_destroy = true
+  schema = {
+    columns = [
+      {
+        name           = "key",
+        type           = "STRING",
+        is_primary_key = true,
+        required       = true
+      },
+      {
+        name          = "{{ .ResourceName }}",
+        type          = "PROTO"
+        proto_package = "{{ .Package }}.{{ .ResourceName }}"
+        required      = true
+      },
+      {
+        name          = "Policy"
+        type          = "PROTO"
+        proto_package = "google.iam.v1.Policy"
+        required      = false
+      },
+      {{- if .HasParent }}
+      {
+        name            = "{{ .ParentResourceId }}",
+        type            = "STRING",
+        is_computed     = true,
+        computation_ddl = "REGEXP_EXTRACT({{ .ResourceName }}.name, r'^{{- range $i, $id := .ParentsCollectionIds }}{{ if gt $i 0 }}/{{ end }}({{ $id }}/[^/]+){{- end }}')",
+        is_stored       = true
+      },
+      {{- end }}
+      {
+        name            = "update_time",
+        type            = "TIMESTAMP",
+        required        = false,
+        is_computed     = true,
+        computation_ddl = "TIMESTAMP_ADD(TIMESTAMP_SECONDS({{ .ResourceName }}.update_time.seconds),INTERVAL CAST(FLOOR({{ .ResourceName }}.update_time.nanos / 1000) AS INT64) MICROSECOND)",
+        is_stored       = true
+      },
+      {
+        name            = "delete_time",
+        type            = "TIMESTAMP",
+        required        = false,
+        is_computed     = true,
+        computation_ddl = "TIMESTAMP_ADD(TIMESTAMP_SECONDS({{ .ResourceName }}.delete_time.seconds),INTERVAL CAST(FLOOR({{ .ResourceName }}.delete_time.nanos / 1000) AS INT64) MICROSECOND)",
+        is_stored       = true
+      },
+    ]
+  }
+}
+
+resource "alis_google_spanner_table_ttl_policy" "{{ .ResourceNamePlural }}_ttl" {
+  project           = alis_google_spanner_table.{{ .ResourceNamePlural }}.project
+  instance          = alis_google_spanner_table.{{ .ResourceNamePlural }}.instance
+  database          = alis_google_spanner_table.{{ .ResourceNamePlural }}.database
+  table             = alis_google_spanner_table.{{ .ResourceNamePlural }}.name
+  column            = "delete_time"
+  ttl               = 90 # Set TTL to 90 days. Resource will be deleted 90 days after delete_time
+}
+
+{{ if .HasParent }}
+resource "alis_google_spanner_table_foreign_key" "{{ .ParentResourceId }}_{{ .ResourceId }}" {
+  project           = alis_google_spanner_table.{{ .ResourceNamePlural }}.project
+  instance          = alis_google_spanner_table.{{ .ResourceNamePlural }}.instance
+  database          = alis_google_spanner_table.{{ .ResourceNamePlural }}.database
+  table             = alis_google_spanner_table.{{ .ResourceNamePlural }}.name
+  name              = "FK_${replace(var.ALIS_OS_PROJECT, "-", "_")}_${replace("{{ .NeuronId }}", "-", "_")}_{{ .ParentResourceId }}_key"
+  column            = "{{ .ParentResourceId }}"
+  referenced_table  = alis_google_spanner_table.{{ .ParentResourceNamePlural }}.name
+  referenced_column = "key"
+  on_delete         = "CASCADE"
+}
+{{ end }}
+
+{{ if .HasRevisions }}
+resource "alis_google_spanner_table" "{{ .ResourceName }}Revisions" {
+  project           = alis_google_spanner_table.{{ .ResourceNamePlural }}.project
+  instance          = alis_google_spanner_table.{{ .ResourceNamePlural }}.instance
+  database          = alis_google_spanner_table.{{ .ResourceNamePlural }}.database
+  name            = "${replace(var.ALIS_OS_PROJECT, "-", "_")}_${replace("{{ .NeuronId }}", "-", "_")}_{{ .ResourceName }}Revisions"
+  prevent_destroy = true
+  schema = {
+    columns = [
+      {
+        name           = "key",
+        type           = "STRING",
+        is_primary_key = true,
+        required       = true
+      },
+      {
+        name          = "{{ .ResourceName }}Revision",
+        type          = "PROTO"
+        proto_package = "{{ .Package }}.{{ .ResourceName }}Revision"
+        required      = true
+      },
+      {
+        name            = "{{ .ResourceId }}",
+        type            = "STRING",
+        is_computed     = true,
+        computation_ddl = "REGEXP_EXTRACT({{ .ResourceName }}Revision.name, r'^{{- range $i, $id := .ParentsCollectionIds }}{{ if gt $i 0 }}/{{ end }}({{ $id }}/[^/]+){{- end }}{{ if .HasParent }}/{{ end }}({{ .CollectionId }}/[^/]+)')",
+        is_stored       = true
+      },
+      {
+        name            = "create_time",
+        type            = "TIMESTAMP",
+        required        = false,
+        is_computed     = true,
+        computation_ddl = "TIMESTAMP_ADD(TIMESTAMP_SECONDS({{ .ResourceName }}Revision.create_time.seconds),INTERVAL CAST(FLOOR({{ .ResourceName }}Revision.create_time.nanos / 1000) AS INT64) MICROSECOND)",
+        is_stored       = true
+      },
+      {
+        name            = "update_time",
+        type            = "TIMESTAMP",
+        required        = false,
+        is_computed     = true,
+        computation_ddl = "TIMESTAMP_ADD(TIMESTAMP_SECONDS({{ .ResourceName }}Revision.update_time.seconds),INTERVAL CAST(FLOOR({{ .ResourceName }}Revision.update_time.nanos / 1000) AS INT64) MICROSECOND)",
+        is_stored       = true
+      },
+    ]
+  }
+}
+
+
+resource "alis_google_spanner_table_foreign_key" "{{ .ResourceId }}_{{ .ResourceId }}_revision" {
+  project           = alis_google_spanner_table.{{ .ResourceName }}Revisions.project
+  instance          = alis_google_spanner_table.{{ .ResourceName }}Revisions.instance
+  database          = alis_google_spanner_table.{{ .ResourceName }}Revisions.database
+  table             = alis_google_spanner_table.{{ .ResourceName }}Revisions.name
+  name              = "FK_${replace(var.ALIS_OS_PROJECT, "-", "_")}_${replace("{{ .NeuronId }}", "-", "_")}_{{ .ResourceId }}_key"
+  column            = "{{ .ResourceId }}"
+  referenced_table  = alis_google_spanner_table.{{ .ResourceNamePlural }}.name
+  referenced_column = "key"
+  on_delete         = "CASCADE"
+}
+{{ end }}
+{{- end }}

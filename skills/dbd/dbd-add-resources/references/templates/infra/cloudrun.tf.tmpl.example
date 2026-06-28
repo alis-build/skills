@@ -1,0 +1,51 @@
+resource "google_cloud_run_v2_service" "{{ .CloudRunName }}" {
+  name     = "{{ .NeuronId }}{{ .CloudRunRelativePath }}"
+  location = var.ALIS_REGION
+
+  annotations = {}
+
+  template {
+    scaling {
+      max_instance_count = 10
+    }
+    containers {
+      image = "${var.ALIS_PRODUCT_REGION}-docker.pkg.dev/${var.ALIS_OS_PRODUCT_PROJECT}/neurons/{{ .NeuronId }}{{ .ImageRelativePath }}:${var.ALIS_OS_NEURON_VERSION_COMMIT_SHA}"
+      ports {
+        name           = "h2c"
+        container_port = 8080
+      }
+      env {
+        name  = "ALIS_OS_PROJECT"
+        value = var.ALIS_OS_PROJECT
+      }
+      env {
+        name  = "ALIS_MANAGED_SPANNER_PROJECT"
+        value = var.ALIS_MANAGED_SPANNER_PROJECT
+      }
+      env {
+        name  = "ALIS_MANAGED_SPANNER_INSTANCE"
+        value = var.ALIS_MANAGED_SPANNER_INSTANCE
+      }
+      env {
+        name  = "ALIS_MANAGED_SPANNER_DB"
+        value = var.ALIS_MANAGED_SPANNER_DB
+      }
+      resources {
+        limits = {
+          cpu : "1000m"
+          memory : "2Gi"
+        }
+        cpu_idle = true // CPU is only allocated during the Request time.
+      }
+    }
+    max_instance_request_concurrency = 250
+    timeout                          = "1200s"
+    service_account                  = "alis-build@${var.ALIS_OS_PROJECT}.iam.gserviceaccount.com"
+  }
+
+  traffic {
+    type    = "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST"
+    percent = 100
+  }
+  deletion_protection = false
+}

@@ -1,0 +1,675 @@
+package main
+
+import (
+	"context"
+	"reflect"
+	"testing"
+
+	"cloud.google.com/go/iam/apiv1/iampb"
+	testutils "go.alis.build/testing"
+	"google.golang.org/protobuf/types/known/emptypb"
+	openIam "open.alis.services/protobuf/alis/open/iam/v1"
+    {{ range .Imports }}
+      {{- if .Alias }}{{ .Alias }}{{- end }}{{- if .Alias }}{{ " " }}{{- end }}"{{ .ImportPath }}"
+    {{ end }}
+)
+
+var {{ .RootCollectionId }}Tester *testutils.GrpcServiceTester
+
+func init() {
+	{{ .RootCollectionId }}Tester = testutils.NewGrpcServiceTester(&{{ .ServiceImportAlias }}.{{ .Service }}_ServiceDesc, {{ .Service }}Server, unaryInterceptor)
+	// {{ .RootCollectionId }}Tester.WithTestUser("123456789","johndoe@example.com")
+}
+
+{{ if .HasPolicies }}
+func Test{{ .Service }}ServerType_GetIamPolicy(t *testing.T) {
+	type args struct {
+		ctx context.Context
+		req *iampb.GetIamPolicyRequest
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    *iampb.Policy
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := {{ .RootCollectionId }}Tester.Test(tt.args.ctx, tt.args.req, &iampb.Policy{})
+			if (err != nil) != tt.wantErr {
+				t.Errorf("GetIamPolicy() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("GetIamPolicy() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test{{ .Service }}ServerType_SetIamPolicy(t *testing.T) {
+	type args struct {
+		ctx context.Context
+		req *iampb.SetIamPolicyRequest
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    *iampb.Policy
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := {{ .RootCollectionId }}Tester.Test(tt.args.ctx, tt.args.req, &iampb.Policy{})
+			if (err != nil) != tt.wantErr {
+				t.Errorf("SetIamPolicy() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("SetIamPolicy() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test{{ .Service }}ServerType_TestIamPermissions(t *testing.T) {
+	type args struct {
+		ctx context.Context
+		req *iampb.TestIamPermissionsRequest
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    *iampb.TestIamPermissionsResponse
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := {{ .RootCollectionId }}Tester.Test(tt.args.ctx, tt.args.req, &iampb.TestIamPermissionsResponse{})
+			if (err != nil) != tt.wantErr {
+				t.Errorf("TestIamPermissions() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("TestIamPermissions() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test{{ .Service }}ServerType_BatchTestIamPermissions(t *testing.T) {
+	type args struct {
+		ctx context.Context
+		req *openIam.BatchTestIamPermissionsRequest
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    *openIam.BatchTestIamPermissionsResponse
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := {{ .RootCollectionId }}Tester.Test(tt.args.ctx, tt.args.req, &openIam.BatchTestIamPermissionsResponse{})
+			if (err != nil) != tt.wantErr {
+				t.Errorf("BatchTestIamPermissions() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("BatchTestIamPermissions() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test{{ .Service }}ServerType_AddIamBindings(t *testing.T) {
+	type args struct {
+		ctx context.Context
+		req *openIam.AddIamBindingsRequest
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    *iampb.Policy
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := {{ .RootCollectionId }}Tester.Test(tt.args.ctx, tt.args.req, &iampb.Policy{})
+			if (err != nil) != tt.wantErr {
+				t.Errorf("AddIamBindings() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("AddIamBindings() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test{{ .Service }}ServerType_RemoveIamBindings(t *testing.T) {
+	type args struct {
+		ctx context.Context
+		req *openIam.RemoveIamBindingsRequest
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    *iampb.Policy
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := {{ .RootCollectionId }}Tester.Test(tt.args.ctx, tt.args.req, &iampb.Policy{})
+			if (err != nil) != tt.wantErr {
+				t.Errorf("RemoveIamBindings() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("RemoveIamBindings() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+{{ end }}
+
+{{ range .Resources }}
+func Test{{ .Service }}ServerType_Create{{ .ResourceName }}(t *testing.T) {
+	type args struct {
+		ctx context.Context
+		req *{{ .ImportAlias }}.Create{{ .ResourceName }}Request
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    *{{ .ImportAlias }}.{{ .ResourceName }}
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := {{ .RootCollectionId }}Tester.Test(tt.args.ctx, tt.args.req, &{{ .ImportAlias }}.{{ .ResourceName }}{})
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Create{{ .ResourceName }}() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("Create{{ .ResourceName }}() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test{{ .Service }}ServerType_Get{{ .ResourceName }}(t *testing.T) {
+	type args struct {
+		ctx context.Context
+		req *{{ .ImportAlias }}.Get{{ .ResourceName }}Request
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    *{{ .ImportAlias }}.{{ .ResourceName }}
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := {{ .RootCollectionId }}Tester.Test(tt.args.ctx, tt.args.req, &{{ .ImportAlias }}.{{ .ResourceName }}{})
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Get{{ .ResourceName }}() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("Get{{ .ResourceName }}() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test{{ .Service }}ServerType_Update{{ .ResourceName }}(t *testing.T) {
+	type args struct {
+		ctx context.Context
+		req *{{ .ImportAlias }}.Update{{ .ResourceName }}Request
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    *{{ .ImportAlias }}.{{ .ResourceName }}
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := {{ .RootCollectionId }}Tester.Test(tt.args.ctx, tt.args.req, &{{ .ImportAlias }}.{{ .ResourceName }}{})
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Update{{ .ResourceName }}() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("Update{{ .ResourceName }}() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test{{ .Service }}ServerType_List{{ .ResourceNamePlural }}(t *testing.T) {
+	type args struct {
+		ctx context.Context
+		req *{{ .ImportAlias }}.List{{ .ResourceNamePlural }}Request
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    *{{ .ImportAlias }}.List{{ .ResourceNamePlural }}Response
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := {{ .RootCollectionId }}Tester.Test(tt.args.ctx, tt.args.req, &{{ .ImportAlias }}.List{{ .ResourceNamePlural }}Response{})
+			if (err != nil) != tt.wantErr {
+				t.Errorf("List{{ .ResourceNamePlural }}() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("List{{ .ResourceNamePlural }}() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test{{ .Service }}ServerType_Delete{{ .ResourceName }}(t *testing.T) {
+	type args struct {
+		ctx context.Context
+		req *{{ .ImportAlias }}.Delete{{ .ResourceName }}Request
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    *{{ .ImportAlias }}.{{ .ResourceName }}
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := {{ .RootCollectionId }}Tester.Test(tt.args.ctx, tt.args.req, &{{ .ImportAlias }}.{{ .ResourceName }}{})
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Delete{{ .ResourceName }}() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("Delete{{ .ResourceName }}() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test{{ .Service }}ServerType_Undelete{{ .ResourceName }}(t *testing.T) {
+	type args struct {
+		ctx context.Context
+		req *{{ .ImportAlias }}.Undelete{{ .ResourceName }}Request
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    *{{ .ImportAlias }}.{{ .ResourceName }}
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := {{ .RootCollectionId }}Tester.Test(tt.args.ctx, tt.args.req, &{{ .ImportAlias }}.{{ .ResourceName }}{})
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Undelete{{ .ResourceName }}() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("Undelete{{ .ResourceName }}() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test{{ .Service }}ServerType_BatchCreate{{ .ResourceNamePlural }}(t *testing.T) {
+	type args struct {
+		ctx context.Context
+		req *{{ .ImportAlias }}.BatchCreate{{ .ResourceNamePlural }}Request
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    *{{ .ImportAlias }}.BatchCreate{{ .ResourceNamePlural }}Response
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := {{ .RootCollectionId }}Tester.Test(tt.args.ctx, tt.args.req, &{{ .ImportAlias }}.BatchCreate{{ .ResourceNamePlural }}Response{})
+			if (err != nil) != tt.wantErr {
+				t.Errorf("BatchCreate{{ .ResourceNamePlural }}() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("BatchCreate{{ .ResourceNamePlural }}() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test{{ .Service }}ServerType_BatchGet{{ .ResourceNamePlural }}(t *testing.T) {
+	type args struct {
+		ctx context.Context
+		req *{{ .ImportAlias }}.BatchGet{{ .ResourceNamePlural }}Request
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    *{{ .ImportAlias }}.BatchGet{{ .ResourceNamePlural }}Response
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := {{ .RootCollectionId }}Tester.Test(tt.args.ctx, tt.args.req, &{{ .ImportAlias }}.BatchGet{{ .ResourceNamePlural }}Response{})
+			if (err != nil) != tt.wantErr {
+				t.Errorf("BatchGet{{ .ResourceNamePlural }}() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("BatchGet{{ .ResourceNamePlural }}() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test{{ .Service }}ServerType_BatchUpdate{{ .ResourceNamePlural }}(t *testing.T) {
+	type args struct {
+		ctx context.Context
+		req *{{ .ImportAlias }}.BatchUpdate{{ .ResourceNamePlural }}Request
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    *{{ .ImportAlias }}.BatchUpdate{{ .ResourceNamePlural }}Response
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := {{ .RootCollectionId }}Tester.Test(tt.args.ctx, tt.args.req, &{{ .ImportAlias }}.BatchUpdate{{ .ResourceNamePlural }}Response{})
+			if (err != nil) != tt.wantErr {
+				t.Errorf("BatchUpdate{{ .ResourceNamePlural }}() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("BatchUpdate{{ .ResourceNamePlural }}() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test{{ .Service }}ServerType_BatchDelete{{ .ResourceNamePlural }}(t *testing.T) {
+	type args struct {
+		ctx context.Context
+		req *{{ .ImportAlias }}.BatchDelete{{ .ResourceNamePlural }}Request
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    *{{ .ImportAlias }}.BatchDelete{{ .ResourceNamePlural }}Response
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := {{ .RootCollectionId }}Tester.Test(tt.args.ctx, tt.args.req, &{{ .ImportAlias }}.BatchDelete{{ .ResourceNamePlural }}Response{})
+			if (err != nil) != tt.wantErr {
+				t.Errorf("BatchDelete{{ .ResourceNamePlural }}() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("BatchDelete{{ .ResourceNamePlural }}() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test{{ .Service }}ServerType_BatchUndelete{{ .ResourceNamePlural }}(t *testing.T) {
+	type args struct {
+		ctx context.Context
+		req *{{ .ImportAlias }}.BatchUndelete{{ .ResourceNamePlural }}Request
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    *{{ .ImportAlias }}.BatchUndelete{{ .ResourceNamePlural }}Response
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := {{ .RootCollectionId }}Tester.Test(tt.args.ctx, tt.args.req, &{{ .ImportAlias }}.BatchUndelete{{ .ResourceNamePlural }}Response{})
+			if (err != nil) != tt.wantErr {
+				t.Errorf("BatchUndelete{{ .ResourceNamePlural }}() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("BatchUndelete{{ .ResourceNamePlural }}() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+{{ if .HasRevisions }}
+func Test{{ .Service }}ServerType_Create{{ .ResourceName }}Revision(t *testing.T) {
+	type args struct {
+		ctx context.Context
+		req *{{ .ImportAlias }}.Create{{ .ResourceName }}RevisionRequest
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    *{{ .ImportAlias }}.{{ .ResourceName }}Revision
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := {{ .RootCollectionId }}Tester.Test(tt.args.ctx, tt.args.req, &{{ .ImportAlias }}.{{ .ResourceName }}Revision{})
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Create{{ .ResourceName }}Revision() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("Create{{ .ResourceName }}Revision() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test{{ .Service }}ServerType_Get{{ .ResourceName }}Revision(t *testing.T) {
+	type args struct {
+		ctx context.Context
+		req *{{ .ImportAlias }}.Get{{ .ResourceName }}RevisionRequest
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    *{{ .ImportAlias }}.{{ .ResourceName }}Revision
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := {{ .RootCollectionId }}Tester.Test(tt.args.ctx, tt.args.req, &{{ .ImportAlias }}.{{ .ResourceName }}Revision{})
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Get{{ .ResourceName }}Revision() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("Get{{ .ResourceName }}Revision() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test{{ .Service }}ServerType_Update{{ .ResourceName }}Revision(t *testing.T) {
+	type args struct {
+		ctx context.Context
+		req *{{ .ImportAlias }}.Update{{ .ResourceName }}RevisionRequest
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    *{{ .ImportAlias }}.{{ .ResourceName }}Revision
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := {{ .RootCollectionId }}Tester.Test(tt.args.ctx, tt.args.req, &{{ .ImportAlias }}.{{ .ResourceName }}Revision{})
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Update{{ .ResourceName }}Revision() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("Update{{ .ResourceName }}Revision() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test{{ .Service }}ServerType_List{{ .ResourceName }}Revisions(t *testing.T) {
+	type args struct {
+		ctx context.Context
+		req *{{ .ImportAlias }}.List{{ .ResourceName }}RevisionsRequest
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    *{{ .ImportAlias }}.List{{ .ResourceName }}RevisionsResponse
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := {{ .RootCollectionId }}Tester.Test(tt.args.ctx, tt.args.req, &{{ .ImportAlias }}.List{{ .ResourceName }}RevisionsResponse{})
+			if (err != nil) != tt.wantErr {
+				t.Errorf("List{{ .ResourceName }}Revision() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("List{{ .ResourceName }}Revision() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test{{ .Service }}ServerType_Delete{{ .ResourceName }}Revision(t *testing.T) {
+	type args struct {
+		ctx context.Context
+		req *{{ .ImportAlias }}.Delete{{ .ResourceName }}RevisionRequest
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    *emptypb.Empty
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := {{ .RootCollectionId }}Tester.Test(tt.args.ctx, tt.args.req, &emptypb.Empty{})
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Delete{{ .ResourceName }}Revision() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("Delete{{ .ResourceName }}Revision() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test{{ .Service }}ServerType_BatchCreate{{ .ResourceName }}Revisions(t *testing.T) {
+	type args struct {
+		ctx context.Context
+		req *{{ .ImportAlias }}.BatchCreate{{ .ResourceName }}RevisionsRequest
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    *{{ .ImportAlias }}.BatchCreate{{ .ResourceName }}RevisionsResponse
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := {{ .RootCollectionId }}Tester.Test(tt.args.ctx, tt.args.req, &{{ .ImportAlias }}.BatchCreate{{ .ResourceName }}RevisionsResponse{})
+			if (err != nil) != tt.wantErr {
+				t.Errorf("BatchCreate{{ .ResourceName }}Revisions() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("BatchCreate{{ .ResourceName }}Revisions() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test{{ .Service }}ServerType_Rollback{{ .ResourceName }}(t *testing.T) {
+	type args struct {
+		ctx context.Context
+		req *pb.Rollback{{ .ResourceName }}Request
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    *pb.{{ .ResourceName }}Revision
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := {{ .RootCollectionId }}Tester.Test(tt.args.ctx, tt.args.req, &pb.{{ .ResourceName }}Revision{})
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Rollback{{ .ResourceName }}() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("Rollback{{ .ResourceName }}() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+{{ end }}
+{{ end }}

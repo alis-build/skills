@@ -1,0 +1,131 @@
+func (s *{{ .Service }}ServerType) BatchUndelete{{ .ResourceNamePlural }}(ctx context.Context, req *{{ .ImportAlias }}.BatchUndelete{{ .ResourceNamePlural }}Request) (*{{ .ImportAlias }}.BatchUndelete{{ .ResourceNamePlural }}Response, error) {
+	{{ if .HasPolicies }}
+	// Create new IAM authorizer
+	az, ctx, err := Iam.NewAuthorizer(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to create authorizer: %s", err.Error())
+	}
+	// Add user's policy to the authorizer
+	az.AddIdentityPolicy()
+    {{ end }}
+
+	// VALIDATION
+	validator := validation.NewValidator()
+	{{ if .HasParent }}
+	validator.String("parent", req.GetParent()).IsPopulated().Matches(regex.{{ .ParentResourceName }})
+	{{ end }}
+	validator.EachMessagePopulated("requests", req.GetRequests() != nil)
+	for i, request := range req.GetRequests() {
+		validator.MessageIsPopulated(fmt.Sprintf("requests[%d]", i), request != nil)
+		validator.String(fmt.Sprintf("requests[%d].name", i), request.GetName()).IsPopulated().Matches(regex.{{ .ResourceName }})
+		// TODO: Add more validation rules here
+	}
+	// TODO: Add more validation rules here
+	if err := validator.Validate(); err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	{{ if .HasParent }}
+	// Ensure all requests have the same parent
+    for _, request := range req.GetRequests() {
+		if !strings.HasPrefix(request.GetName(), req.GetParent()+"/") {
+			return nil, status.Errorf(codes.InvalidArgument, "all requests must have the same parent: %s", req.GetParent())
+		}
+	}
+	{{ end }}
+
+	{{ if .HasPolicies }}
+	{{ if .HasParent }}
+	// Get the parent policy
+	parentPolicy, err := s.GetIamPolicy(ctx, &iampb.GetIamPolicyRequest{
+		Resource: req.GetParent(),
+	})
+	if err != nil && status.Code(err) != codes.NotFound {
+		return nil, err
+	}
+	// Add parent policy to the authorizer
+	az.AddPolicy(parentPolicy)
+	{{ end }}
+	if err = az.AuthorizeRpc(); err != nil {
+		return nil, err
+	}
+	{{ end }}
+
+	// Get the names of the resources to be deleted
+	resourceNames := utils.Transform(req.GetRequests(), func(request *{{ .ImportAlias }}.Undelete{{ .ResourceName }}Request) string {
+		return request.GetName()
+	})
+
+	// Read the resources from the database
+	rows, notFound, err := db.{{ .ResourceNamePlural }}.BatchRead(ctx, resourceNames)
+	if err != nil {
+		return nil, err
+	}
+
+	// If any resources were not found, return an error
+	if len(notFound) > 0 {
+		return nil, status.Errorf(codes.NotFound, "the following resources were not found: %s", strings.Join(notFound, ", "))
+	}
+
+    // Create slices to hold the resources and policies
+	var resources []*{{ .ImportAlias }}.{{ .ResourceName }}
+	var policies []*iampb.Policy
+	for i, row := range rows {
+        {{ if .HasPolicies }}
+		// Check if the requester has access to this resource
+		if !az.HasAccess({{ .ImportAlias }}.{{ .Service }}_Undelete{{ .ResourceName }}_FullMethodName, row.GetPolicy()) {
+			return nil, status.Errorf(codes.PermissionDenied, "you do not have permission to undelete resource %s", row.GetResource().GetName())
+		}
+        {{ end }}
+
+		// If etag is provided, ensure it matches
+		request := req.GetRequests()[i]
+		if request.GetEtag() != "" && row.GetResource().GetEtag() != request.GetEtag() {
+			return nil, status.Errorf(codes.FailedPrecondition, "etag does not match for resource %s", row.GetResource().GetName())
+		}
+
+		// Remove delete time
+		row.GetResource().DeleteTime = nil
+
+		// Set etag
+		row.GetResource().Etag = uuid.New().String()
+
+		// Append the resource and policy to the respective lists
+		resources = append(resources, row.GetResource())
+		policies = append(policies, row.GetPolicy())
+	}
+
+	// Get the names of the resources to be deleted
+	rowNames := utils.Transform(rows, func(row database.ResourceRow[*{{ .ImportAlias }}.{{ .ResourceName }}]) string {
+		return row.GetResource().GetName()
+	})
+
+	// Write the resources to the database
+	updatedRows, err := db.{{ .ResourceNamePlural }}.BatchWrite(ctx, rowNames, resources, policies)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get the updated resources
+	updatedResources := utils.Transform(updatedRows, func(row database.ResourceRow[*{{ .ImportAlias }}.{{ .ResourceName }}]) *{{ .ImportAlias }}.{{ .ResourceName }} {
+		return row.GetResource()
+	})
+
+	{{ if .HasRevisions }}
+	// Create a new revision for each updated resource
+	for _, resource := range updatedResources {
+		if _, err := s.Create{{ .ResourceName }}Revision(ctx, &pb.Create{{ .ResourceName }}RevisionRequest{
+			Parent: resource.GetName(),
+			{{ .ResourceName }}Revision: &pb.{{ .ResourceName }}Revision{
+				Snapshot: resource,
+			},
+		}); err != nil {
+			return nil, err
+		}
+	}
+	{{ end }}
+
+	return &{{ .ImportAlias }}.BatchUndelete{{ .ResourceNamePlural }}Response{
+		{{ .ResourceNamePlural }}: updatedResources,
+	}, nil
+}

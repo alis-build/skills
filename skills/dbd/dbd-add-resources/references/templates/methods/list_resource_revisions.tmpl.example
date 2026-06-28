@@ -1,0 +1,81 @@
+func (s *{{ .Service }}ServerType) List{{ .ResourceName }}Revisions(ctx context.Context, req *{{ .ImportAlias }}.List{{ .ResourceName }}RevisionsRequest) (*{{ .ImportAlias }}.List{{ .ResourceName }}RevisionsResponse, error) {
+	{{ if .HasPolicies }}
+	// Create new IAM authorizer
+	az, ctx, err := Iam.NewAuthorizer(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to create authorizer: %s", err.Error())
+	}
+	// Add user's policy to the authorizer
+	az.AddIdentityPolicy()
+    {{ end }}
+
+	// Validate the parent resource
+	validator := validation.NewValidator()
+    validator.String("parent", req.GetParent()).IsPopulated().Matches(regex.{{ .ResourceName }})
+	if err := validator.Validate(); err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	{{ if .HasPolicies }}
+	// Get the parent policy
+	parentPolicy, err := s.GetIamPolicy(ctx, &iampb.GetIamPolicyRequest{
+		Resource: req.GetParent(),
+	})
+	if err != nil && status.Code(err) != codes.NotFound {
+		return nil, err
+	}
+	// Add parent policy to the authorizer
+	az.AddPolicy(parentPolicy)
+ 
+	if err = az.AuthorizeRpc(); err != nil {
+		return nil, err
+	}
+    {{ end }}
+
+	// Read mask
+	readMask := req.GetReadMask()
+
+	// If read mask is not provided, use view settings
+	// If the view is not set, default to BASIC view
+	if len(readMask.GetPaths()) == 0 {
+		var err error
+		readMask, err = fieldmaskpb.New(&{{ .ImportAlias }}.{{ .ResourceName }}Revision{}, "name")
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid field mask: %s", err.Error())
+		}
+		// If the view is FULL, no read mask is applied
+		if req.GetView() == {{ .ImportAlias }}.{{ .ResourceName }}RevisionView_{{ .ResourceNameUppercase }}_REVISION_VIEW_FULL {
+			readMask.Paths = []string{}
+		}
+	}
+
+	// Read resources from the database
+	rows, nextToken, err := db.{{ .ResourceName }}Revisions.List(ctx, req.GetParent(), req.GetPageSize(), req.GetPageToken(), req.GetFilter(), req.GetOrderBy())
+	if err != nil {
+		return nil, err
+	}
+
+	// Build up list of resources that requester has access to
+	var resources []*{{ .ImportAlias }}.{{ .ResourceName }}Revision
+	for _, row := range rows {
+        {{ if .HasPolicies }}
+		// Check if the requester has access to this resource
+		if !az.HasAccess({{ .ImportAlias }}.{{ .Service }}_Get{{ .ResourceName }}Revision_FullMethodName, parentPolicy) {
+			continue
+		}
+        {{ end }}
+
+		// Apply read mask to the row
+		if err := row.ApplyReadMask(readMask); err != nil {
+			return nil, err
+		}
+
+		// Append the resource to the list
+		resources = append(resources, row.GetResource())
+	}
+
+	return &{{ .ImportAlias }}.List{{ .ResourceName }}RevisionsResponse{
+        {{ .ResourceName }}Revisions: resources,
+        NextPageToken: nextToken,
+    }, nil
+}

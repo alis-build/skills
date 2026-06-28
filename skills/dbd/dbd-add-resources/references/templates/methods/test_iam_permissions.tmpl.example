@@ -1,0 +1,25 @@
+func (s *{{ .Service }}ServerType) TestIamPermissions(ctx context.Context, req *iampb.TestIamPermissionsRequest) (*iampb.TestIamPermissionsResponse, error) {
+	// AUTHZ: initialise
+	az, _, err := Iam.NewAuthorizer(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to create authorizer: %s", err.Error())
+	}
+	az.AddIdentityPolicy()
+	az.AddPolicyFromServerRpc(req.GetResource(), s.GetIamPolicy)
+
+	// AUTHZ: check access
+	err = az.AuthorizeRpc()
+	if err != nil {
+		return nil, err
+	}
+
+	// ACTION: build list of permissions that requester has access to
+	var permissions []string
+	for _, permission := range req.GetPermissions() {
+		if az.HasAccess(permission) {
+			permissions = append(permissions, permission)
+		}
+	}
+
+	return &iampb.TestIamPermissionsResponse{Permissions: permissions}, nil
+}

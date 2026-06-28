@@ -1,0 +1,471 @@
+syntax = "proto3";
+
+package {{ .Package }};
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/field_mask.proto";
+import "google/iam/v1/policy.proto";
+import "google/iam/v1/iam_policy.proto";
+import "alis/open/iam/v1/iam.proto";
+import "google/protobuf/empty.proto";
+
+// {{ .Service }}
+service {{ .Service }} {
+    // Gets the IAM policy for a resource implemented in this service.
+    rpc GetIamPolicy(google.iam.v1.GetIamPolicyRequest) returns (google.iam.v1.Policy) {}
+    // Sets the IAM policy for a resource implemented in this service.
+    rpc SetIamPolicy(google.iam.v1.SetIamPolicyRequest) returns (google.iam.v1.Policy) {}
+    // Returns permissions that a caller has on the specified resource.
+    rpc TestIamPermissions(google.iam.v1.TestIamPermissionsRequest) returns (google.iam.v1.TestIamPermissionsResponse) {}
+    // Returns permissions that a caller has on the specified resources.
+    rpc BatchTestIamPermissions(alis.open.iam.v1.BatchTestIamPermissionsRequest) returns (alis.open.iam.v1.BatchTestIamPermissionsResponse) {}
+    // Adds principals or updates the roles existing principals have on an IAM Policy protected resource.
+    rpc AddIamBindings(alis.open.iam.v1.AddIamBindingsRequest) returns (google.iam.v1.Policy) {}
+    // Removes principals or some of the roles they have on an IAM Policy protected resource.
+    rpc RemoveIamBindings(alis.open.iam.v1.RemoveIamBindingsRequest) returns (google.iam.v1.Policy) {}
+
+    {{ range .Resources }}
+    // Creates a new {{ .ResourceId }}.
+    rpc Create{{ .ResourceName }}(Create{{ .ResourceName }}Request) returns ({{ .ResourceName }}) {}
+    // Gets an {{ .ResourceId }} by its resource name.
+    rpc Get{{ .ResourceName }}(Get{{ .ResourceName }}Request) returns ({{ .ResourceName }}) {}
+    // Updates an {{ .ResourceId }}.
+    rpc Update{{ .ResourceName }}(Update{{ .ResourceName }}Request) returns ({{ .ResourceName }}) {}
+    // Lists all {{ .CollectionId }}.
+    rpc List{{ .ResourceNamePlural }}(List{{ .ResourceNamePlural }}Request) returns (List{{ .ResourceNamePlural }}Response) {}
+    // Deletes an {{ .ResourceId }}.
+    rpc Delete{{ .ResourceName }}(Delete{{ .ResourceName }}Request) returns ({{ .ResourceName }}) {}
+    // Un-deletes an {{ .ResourceId }}.
+    rpc Undelete{{ .ResourceName }}(Undelete{{ .ResourceName }}Request) returns ({{ .ResourceName }}) {}
+    // Batch creates {{ .CollectionId }}.
+    rpc BatchCreate{{ .ResourceNamePlural }}(BatchCreate{{ .ResourceNamePlural }}Request) returns (BatchCreate{{ .ResourceNamePlural }}Response) {}
+    // Get a batch of {{ .CollectionId }} by their resource names.
+    rpc BatchGet{{ .ResourceNamePlural }}(BatchGet{{ .ResourceNamePlural }}Request) returns (BatchGet{{ .ResourceNamePlural }}Response) {}
+    // Batch updates {{ .CollectionId }}.
+    rpc BatchUpdate{{ .ResourceNamePlural }}(BatchUpdate{{ .ResourceNamePlural }}Request) returns (BatchUpdate{{ .ResourceNamePlural }}Response) {}
+    // Batch deletes {{ .CollectionId }}.
+    rpc BatchDelete{{ .ResourceNamePlural }}(BatchDelete{{ .ResourceNamePlural }}Request) returns (BatchDelete{{ .ResourceNamePlural }}Response) {}
+    // Batch undeletes {{ .CollectionId }}.
+    rpc BatchUndelete{{ .ResourceNamePlural }}(BatchUndelete{{ .ResourceNamePlural }}Request) returns (BatchUndelete{{ .ResourceNamePlural }}Response) {}
+    // Stream {{ .CollectionId }}.
+    rpc Stream{{ .ResourceNamePlural }}(Stream{{ .ResourceNamePlural }}Request) returns (stream {{ .ResourceName }}) {}
+
+    {{ if .HasRevisions }}
+    // Creates a new {{ .ResourceId }} revision.
+    rpc Create{{ .ResourceName }}Revision(Create{{ .ResourceName }}RevisionRequest) returns ({{ .ResourceName }}Revision) {}
+    // Gets an {{ .ResourceId }} revision by its resource name.
+    rpc Get{{ .ResourceName }}Revision(Get{{ .ResourceName }}RevisionRequest) returns ({{ .ResourceName }}Revision) {}
+    // Updates {{ .ResourceId }} revision.
+    rpc Update{{ .ResourceName }}Revision(Update{{ .ResourceName }}RevisionRequest) returns ({{ .ResourceName }}Revision) {}
+    // Lists all {{ .ResourceId }} revisions.
+    rpc List{{ .ResourceName }}Revisions(List{{ .ResourceName }}RevisionsRequest) returns (List{{ .ResourceName }}RevisionsResponse) {}
+    // Deletes {{ .ResourceId }} revision.
+    rpc Delete{{ .ResourceName }}Revision(Delete{{ .ResourceName }}RevisionRequest) returns (google.protobuf.Empty) {}
+    // Batch creates {{ .ResourceId }} revisions.
+    rpc BatchCreate{{ .ResourceName }}Revisions(BatchCreate{{ .ResourceName }}RevisionsRequest) returns (BatchCreate{{ .ResourceName }}RevisionsResponse) {}
+    // Rollbacks {{ .ResourceId }} to a previous revision.
+    rpc Rollback{{ .ResourceName }}(Rollback{{ .ResourceName }}Request) returns ({{ .ResourceName }}Revision) {}
+    {{ end }}
+    {{ end }}
+}
+
+{{ define "ResourceNameFormat" }}
+    {{ .CollectionId }}/{{ .ResourceIdRegex }}
+{{ end }}
+
+{{ range .Resources }}
+// An {{ .ResourceName }} resource
+message {{ .ResourceName }} {
+    // The resource name of the {{ .ResourceId }}.
+    //
+    // This should follow AIP-122(https://google.aip.dev/122) resource name format.
+    string name = 1;
+
+    // TODO: Add more fields as needed.
+
+    // Entity tag
+    string etag = 97;
+    // When this {{ .ResourceId }} was created.
+    google.protobuf.Timestamp create_time = 98;
+    // When this {{ .ResourceId }} was updated.
+    google.protobuf.Timestamp update_time = 99;
+    // When this {{ .ResourceId }} was deleted, if applicable.
+    google.protobuf.Timestamp delete_time = 100;
+}
+{{ if .HasRevisions }}
+// An {{ .ResourceName }} revision resource
+message {{ .ResourceName }}Revision {
+    // The resource name of the {{ .ResourceId }} revision.
+    //
+    // This should follow AIP-162(https://google.aip.dev/162) resource name format.
+    string name = 1;
+    // The snapshot of the {{ .ResourceId }} at the time of this revision.
+    {{ .ResourceName }} snapshot = 2;
+    // When this {{ .ResourceId }} revision was created.
+    google.protobuf.Timestamp create_time = 98;
+    // When this {{ .ResourceId }} revision was updated.
+    google.protobuf.Timestamp update_time = 99;
+}
+{{ end }}
+{{ end }}
+{{ range .Resources }}
+// Request to create an {{ .ResourceId }}.
+message Create{{ .ResourceName }}Request {
+    {{ if .HasParent }}
+    // The parent {{ .ParentResourceId }} resource name
+    string parent = 1;
+    {{ else }}
+    // Reserved for future use.
+    reserved 1;
+    {{ end }}
+    // The {{ .ResourceId }} to create.
+    {{ .ResourceName }} {{ .ResourceId }} = 2;
+    {{ if .UserProvidedId }}
+    string {{ .ResourceId }}_id = 3;
+    {{ end }}
+}
+
+// Request to get an {{ .ResourceId }}.
+message Get{{ .ResourceName }}Request {
+    // The resource name of the {{ .ResourceId }} to retrieve.
+    string name = 1;
+    // The view of the {{ .ResourceId }} to return.
+    //
+    // An optional view to specify which fields to return in cases where read_mask is not specified.
+    // Defaults to BASIC view.
+    {{ .ResourceName }}View view = 2;
+    // A read mask to specify which fields to return.
+    // If not specified, view will determine the fields returned.
+    google.protobuf.FieldMask read_mask = 3;
+}
+
+// Request to update an {{ .ResourceId }}.
+message Update{{ .ResourceName }}Request {
+    // The {{ .ResourceId }} to update.
+    {{ .ResourceName }} {{ .ResourceId }} = 1;
+    // The list of fields to update.
+    google.protobuf.FieldMask update_mask = 2;
+    // Whether to allow missing {{ .CollectionId }}.
+    bool allow_missing = 3;
+}
+
+// Request to delete an {{ .ResourceId }}.
+message Delete{{ .ResourceName }}Request {
+    // The resource name of the {{ .ResourceId }} to delete.
+    string name = 1;
+    // An optional etag.
+    // If provided, the {{ .ResourceId }} will only be deleted if the etag matches.
+    string etag = 2;
+}
+
+// Request to undelete an {{ .ResourceId }}.
+message Undelete{{ .ResourceName }}Request {
+    // The resource name of the {{ .ResourceId }} to undelete.
+    string name = 1;
+    // An optional etag.
+    // If provided, the {{ .ResourceId }} will only be undeleted if the etag matches.
+    string etag = 2;
+}
+
+// Request to list {{ .CollectionId }}.
+message List{{ .ResourceNamePlural }}Request {
+    {{ if .HasParent }}
+    // The parent {{ .ParentResourceId }} resource name.
+    string parent = 1;
+    {{ else }}
+    // Reserved for future use.
+    reserved 1;
+    {{ end }}
+    // The maximum number of {{ .CollectionId }} to return.
+    int32 page_size = 2;
+    // A page token to retrieve the next page of results.
+    string page_token = 3;
+    // The view of {{ .CollectionId }} to return.
+    //
+    // An optional view to specify which fields to return in cases where read_mask is not specified.
+    // Defaults to BASIC view.
+    {{ .ResourceName }}View view = 4;
+    // A read mask to specify which fields to return.
+    // If not specified, view will determine the fields returned.
+    google.protobuf.FieldMask read_mask = 5;
+    // A filter expression to apply to the list of {{ .CollectionId }}.
+    string filter = 6;
+    // The field to order the {{ .CollectionId }} by.
+    string order_by = 7;
+    // Whether to include deleted {{ .CollectionId }} in the list.
+    bool show_deleted = 8;
+}
+
+// Response for List{{ .ResourceNamePlural }}.
+message List{{ .ResourceNamePlural }}Response {
+    // The list of {{ .CollectionId }}.
+    repeated {{ .ResourceName }} {{ .CollectionIdSnakeCase }} = 1;
+    // A token to retrieve the next page of results.
+    string next_page_token = 2;
+}
+
+// Request to batch create {{ .CollectionId }}.
+message BatchCreate{{ .ResourceNamePlural }}Request {
+    {{ if .HasParent }}
+    // The parent {{ .ParentResourceId }} resource name
+    // If this is provided, all requests should have the same parent.
+    string parent = 1;
+    {{ else }}
+    // Reserved for future use.
+    reserved 1;
+    {{ end }}
+    // The list of created {{ .CollectionId }}.
+    repeated Create{{ .ResourceName }}Request requests = 2;
+}
+
+// Response for BatchCreate{{ .ResourceNamePlural }}.
+message BatchCreate{{ .ResourceNamePlural }}Response {
+    // The created {{ .CollectionId }}.
+    repeated {{ .ResourceName }} {{ .CollectionIdSnakeCase }} = 1;
+}
+
+// Request to get a batch of {{ .CollectionId }} by their resource names.
+message BatchGet{{ .ResourceNamePlural }}Request {
+    {{ if .HasParent }}
+    // The parent {{ .ParentResourceId }} resource name
+    // If this is provided, all names should have the same parent.
+    string parent = 1;
+    {{ else }}
+    // Reserved for future use.
+    reserved 1;
+    {{ end }}
+    // The resource names of the {{ .CollectionId }} to retrieve.
+    repeated string names = 2;
+    // The view of the {{ .CollectionId }} to return.
+    //
+    // An optional view to specify which fields to return in cases where read_mask is not specified.
+    // Defaults to BASIC view.
+    {{ .ResourceName }}View view = 3;
+    // A read mask to specify which fields to return.
+    // If not specified, view will determine the fields returned.
+    google.protobuf.FieldMask read_mask = 4;
+}
+
+// Response for BatchGet{{ .ResourceNamePlural }}.
+message BatchGet{{ .ResourceNamePlural }}Response {
+    // The retrieved {{ .CollectionId }}.
+    repeated {{ .ResourceName }} {{ .CollectionIdSnakeCase }} = 1;
+}
+
+// Request to batch update {{ .CollectionId }}.
+message BatchUpdate{{ .ResourceNamePlural }}Request {
+    {{ if .HasParent }}
+    // The parent {{ .ParentResourceId }} resource name, in the format:
+    // If this is provided, all requests should have the same parent.
+    string parent = 1;
+    {{ else }}
+    // Reserved for future use.
+    reserved 1;
+    {{ end }}
+    // The {{ .CollectionId }} to update.
+    repeated Update{{ .ResourceName }}Request requests = 2;
+    // The update mask to apply to all {{ .CollectionId }}.
+    google.protobuf.FieldMask update_mask = 3;
+    // Whether to allow missing {{ .CollectionId }}.
+    bool allow_missing = 4;
+}
+
+// Response for BatchUpdate{{ .ResourceNamePlural }}.
+message BatchUpdate{{ .ResourceNamePlural }}Response {
+    // The updated {{ .CollectionId }}.
+    repeated {{ .ResourceName }} {{ .CollectionIdSnakeCase }} = 1;
+}
+
+// Request to batch delete {{ .CollectionId }}.
+message BatchDelete{{ .ResourceNamePlural }}Request {
+    {{ if .HasParent }}
+    // The parent {{ .ParentResourceId }} resource name
+    // If this is provided, all requests should have the same parent.
+    string parent = 1;
+    {{ else }}
+    // Reserved for future use.
+    reserved 1;
+    {{ end }}
+    // The resource names of the {{ .CollectionId }} to delete.
+    repeated Delete{{ .ResourceName }}Request requests = 2;
+}
+
+// Response for BatchDelete{{ .ResourceNamePlural }}.
+message BatchDelete{{ .ResourceNamePlural }}Response {
+    // The resource names of the deleted {{ .CollectionId }}.
+    repeated {{ .ResourceName }} {{ .CollectionIdSnakeCase }} = 1;
+}
+
+// Request to batch undelete {{ .CollectionId }}.
+message BatchUndelete{{ .ResourceNamePlural }}Request {
+    {{ if .HasParent }}
+    // The parent {{ .ParentResourceId }} resource name
+    // If this is provided, all requests should have the same parent.
+    string parent = 1;
+    {{ else }}
+    // Reserved for future use.
+    reserved 1;
+    {{ end }}
+    // The resource names of the {{ .CollectionId }} to undelete.
+    repeated Undelete{{ .ResourceName }}Request requests = 2;
+}
+
+// Response for BatchUndelete{{ .ResourceNamePlural }}.
+message BatchUndelete{{ .ResourceNamePlural }}Response {
+    // The resource names of the undeleted {{ .CollectionId }}.
+    repeated {{ .ResourceName }} {{ .CollectionIdSnakeCase }} = 1;
+}
+
+// Request to stream {{ .CollectionId }}.
+message Stream{{ .ResourceNamePlural }}Request {
+    {{ if .HasParent }}
+    // The parent {{ .ParentResourceId }} resource name
+    string parent = 1;
+    {{ else }}
+    // Reserved for future use.
+    reserved 1;
+    {{ end }}
+    // The view of the {{ .CollectionId }} to return.
+    //
+    // An optional view to specify which fields to return in cases where read_mask is not specified.
+    // Defaults to BASIC view.
+    {{ .ResourceName }}View view = 2;
+    // A read mask to specify which fields to return.
+    // If not specified, view will determine the fields returned.
+    google.protobuf.FieldMask read_mask = 3;
+    // A filter expression to apply to the stream of {{ .CollectionId }}.
+    string filter = 4;
+    // The field to order the {{ .CollectionId }} by.
+    string order_by = 5;
+    // Whether to include deleted {{ .CollectionId }} in the stream.
+    bool show_deleted = 6;
+}
+
+{{ if .HasRevisions }}
+// Request to create {{ .ResourceId }} revision.
+message Create{{ .ResourceName }}RevisionRequest {
+    // The parent {{ .ResourceId }} resource name
+    string parent = 1;
+    // The {{ .ResourceId }} revision to create.
+    {{ .ResourceName }}Revision {{ .ResourceId }}_revision = 2;
+}
+
+// Request to get {{ .ResourceId }} revision.
+message Get{{ .ResourceName }}RevisionRequest {
+    // The resource name of the {{ .ResourceId }} revision to retrieve.
+    string name = 1;
+    // The view of the {{ .ResourceId }} revision to return.
+    //
+    // An optional view to specify which fields to return in cases where read_mask is not specified.
+    // Defaults to BASIC view.
+    {{ .ResourceName }}RevisionView view = 2;
+    // A read mask to specify which fields to return.
+    // If not specified, view will determine the fields returned.
+    google.protobuf.FieldMask read_mask = 3;
+}
+
+// Request to update {{ .ResourceId }} revision.
+message Update{{ .ResourceName }}RevisionRequest {
+    // The {{ .ResourceId }} revision to update.
+    {{ .ResourceName }}Revision {{ .ResourceId }}_revision = 1;
+    // The list of fields to update.
+    google.protobuf.FieldMask update_mask = 2;
+    // Whether to allow missing {{ .CollectionId }}.
+    bool allow_missing = 3;
+}
+
+// Request to list {{ .ResourceId }} revisions.
+message List{{ .ResourceName }}RevisionsRequest {
+    // The parent {{ .ResourceId }} resource name.
+    string parent = 1;
+    // The maximum number of {{ .ResourceId }} revisions to return.
+    int32 page_size = 2;
+    // A page token to retrieve the next page of results.
+    string page_token = 3;
+    // The view of {{ .ResourceId }} revisions to return.
+    //
+    // An optional view to specify which fields to return in cases where read_mask is not specified.
+    // Defaults to BASIC view.
+    {{ .ResourceName }}RevisionView view = 4;
+    // A read mask to specify which fields to return.
+    // If not specified, view will determine the fields returned.
+    google.protobuf.FieldMask read_mask = 5;
+    // A filter expression to apply to the list of {{ .CollectionId }}.
+    string filter = 6;
+    // The field to order the {{ .ResourceId }} revisions by.
+    string order_by = 7;
+}
+
+// Response for List{{ .ResourceName }}Revision.
+message List{{ .ResourceName }}RevisionsResponse {
+    // The list of {{ .ResourceId }} revisions.
+    repeated {{ .ResourceName }}Revision {{ .ResourceId }}_revisions = 1;
+    // A token to retrieve the next page of results.
+    string next_page_token = 2;
+}
+
+// Request to delete {{ .ResourceId }} revision.
+message Delete{{ .ResourceName }}RevisionRequest {
+    // The resource name of the {{ .ResourceId }} revision to delete.
+    string name = 1;
+}
+
+// Request to batch create {{ .ResourceId }} revisions.
+message BatchCreate{{ .ResourceName }}RevisionsRequest {
+    // The parent {{ .ResourceId }} resource name
+    string parent = 1;
+    // The list of created {{ .ResourceId }} revisions.
+    repeated Create{{ .ResourceName }}RevisionRequest requests = 2;
+}
+
+// Response for BatchCreate{{ .ResourceName }}Revisions.
+message BatchCreate{{ .ResourceName }}RevisionsResponse {
+    // The created {{ .ResourceId }} revisions.
+    repeated {{ .ResourceName }}Revision {{ .ResourceId }}_revisions = 1;
+}
+
+// Request to rollback {{ .ResourceId }} to a previous revision.
+message Rollback{{ .ResourceName }}Request {
+    // The revision that the {{ .ResourceId }} should be rolled back to.
+    string name = 1;
+}
+{{ end }}
+{{ end }}
+{{ range .Resources }}
+// View enumeration for {{ .ResourceName }}.
+//
+// This enumeration defines the different views that can be used to read/retrieve {{ .ResourceName }}.
+// It works in conjunction with read_mask, where if read_mask is not specified, view is used to determine which fields are returned.
+// It follows the AIP-157(https://google.aip.dev/157) guidelines for partial responses.
+enum {{ .ResourceName }}View {
+    // The default / unset value.
+    //
+    // The API will default to the BASIC view
+    {{ .ResourceNameUppercase }}_VIEW_UNSPECIFIED = 0;
+    // Basic view, includes only essential fields.
+    //
+    // The API determines which fields are essential.
+    // In most cases, this will only include the resource name and etag.
+    {{ .ResourceNameUppercase }}_VIEW_BASIC = 1;
+    // Detailed view, includes all fields except sensitive information.
+    {{ .ResourceNameUppercase }}_VIEW_FULL = 2;
+}
+{{ if .HasRevisions }}
+// View enumeration for {{ .ResourceName }}Revision.
+// This enumeration defines the different views that can be used to read/retrieve {{ .ResourceName }}Revision.
+// It works in conjunction with read_mask, where if read_mask is not specified, view is used to determine which fields are returned.
+// It follows the AIP-157(https://google.aip.dev/157) guidelines for partial responses.
+enum {{ .ResourceName }}RevisionView {
+    // The default / unset value.
+    //
+    // The API will default to the BASIC view
+    {{ .ResourceNameUppercase }}_REVISION_VIEW_UNSPECIFIED = 0;
+    // Basic view, includes only essential fields.
+    // The API determines which fields are essential.
+    // In most cases, this will only include the resource name and etag.
+    {{ .ResourceNameUppercase }}_REVISION_VIEW_BASIC = 1;
+    // Detailed view, includes all fields except sensitive information.
+    {{ .ResourceNameUppercase }}_REVISION_VIEW_FULL = 2;
+}
+{{ end }}
+{{ end }}

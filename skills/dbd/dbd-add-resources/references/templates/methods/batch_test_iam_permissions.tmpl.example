@@ -1,0 +1,28 @@
+func (s *{{ .Service }}ServerType) BatchTestIamPermissions(ctx context.Context, req *openIam.BatchTestIamPermissionsRequest) (*openIam.BatchTestIamPermissionsResponse, error) {
+	var resourcePermissions []*openIam.BatchTestIamPermissionsResponse_ResourcePermissions
+	// TODO: improve performance using go routines
+	for _, resource := range req.GetResources() {
+		// AUTHZ: initialise
+		az, _, err := Iam.NewAuthorizer(ctx)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "create authorizer: %s", err.Error())
+		}
+
+		// TODO: use az.AddPolicyFromServerRpc and az.AddPolicyFromClientRpc to add policies to check
+		az.AddPolicyFromServerRpc(resource, s.GetIamPolicy)
+		// az.Policies() // TODO: temp fix to ensure that all policies are fetched async.
+
+		var permissions []string
+		for _, permission := range req.GetPermissions() {
+			if az.HasAccess(permission) {
+				permissions = append(permissions, permission)
+			}
+		}
+		resourcePermissions = append(resourcePermissions, &openIam.BatchTestIamPermissionsResponse_ResourcePermissions{
+			Resource:    resource,
+			Permissions: permissions,
+		})
+	}
+
+	return &openIam.BatchTestIamPermissionsResponse{ResourcePermissions: resourcePermissions}, nil
+}

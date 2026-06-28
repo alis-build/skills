@@ -1,0 +1,51 @@
+func (s *{{ .Service }}ServerType) Create{{ .ResourceName }}Revision(ctx context.Context, req *{{ .ImportAlias }}.Create{{ .ResourceName }}RevisionRequest) (*{{ .ImportAlias }}.{{ .ResourceName }}Revision, error) {
+    {{ if .HasPolicies }}
+	// Create new IAM authorizer
+	az, ctx, err := Iam.NewAuthorizer(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to create authorizer: %s", err.Error())
+	}
+    // Add user's policy to the authorizer
+	az.AddIdentityPolicy()
+    {{ end }}
+
+    // VALIDATION
+	validator := validation.NewValidator()
+    validator.String("parent", req.GetParent()).IsPopulated().Matches(regex.{{ .ResourceName }})
+	validator.MessageIsPopulated("{{ .ResourceId }}_revision", req.Get{{ .ResourceName }}Revision() != nil)
+	validator.MessageIsPopulated("{{ .ResourceId }}_revision.snapshot", req.Get{{ .ResourceName }}Revision().GetSnapshot() != nil)
+	validator.String("{{ .ResourceId }}_revision.snapshot.name", req.Get{{ .ResourceName }}Revision().GetSnapshot().GetName()).IsPopulated().Matches(regex.{{ .ResourceName }})
+	// TODO: Add more validation rules here
+	if err := validator.Validate(); err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	{{ if .HasPolicies }}
+	// Get the parent policy
+	parentPolicy, err := s.GetIamPolicy(ctx, &iampb.GetIamPolicyRequest{
+		Resource: req.GetParent(),
+	})
+	if err != nil && status.Code(err) != codes.NotFound {
+		return nil, err
+	}
+	// Add parent policy to the authorizer
+	az.AddPolicy(parentPolicy)
+	if err = az.AuthorizeRpc(); err != nil {
+		return nil, err
+	}
+    {{ end }}
+
+	// Set the resource name
+	id := uuid.New().String()
+	req.Get{{ .ResourceName }}Revision().Name = req.GetParent() + "/revisions/" + id
+
+	// Set the resource create time
+	req.Get{{ .ResourceName }}Revision().CreateTime = timestamppb.Now()
+
+	// Create the resource in the database
+	if _, err := db.{{ .ResourceName }}Revisions.Create(ctx, req.Get{{ .ResourceName }}Revision().GetName(), req.Get{{ .ResourceName }}Revision(), nil); err != nil {
+		return nil, err
+	}
+
+	return req.Get{{ .ResourceName }}Revision(), nil
+}

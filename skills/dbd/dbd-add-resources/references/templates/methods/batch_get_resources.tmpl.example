@@ -1,0 +1,106 @@
+func (s *{{ .Service }}ServerType) BatchGet{{ .ResourceNamePlural }}(ctx context.Context, req *{{ .ImportAlias }}.BatchGet{{ .ResourceNamePlural }}Request) (*{{ .ImportAlias }}.BatchGet{{ .ResourceNamePlural }}Response, error) {
+	{{ if .HasPolicies }}
+	// Create new IAM authorizer
+	az, ctx, err := Iam.NewAuthorizer(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to create authorizer: %s", err.Error())
+	}
+	// Add user's policy to the authorizer
+	az.AddIdentityPolicy()
+    {{ end }}
+
+	// VALIDATION
+	validator := validation.NewValidator()
+    {{ if .HasParent }}
+	validator.String("parent", req.GetParent()).IsPopulated().Matches(regex.{{ .ParentResourceName }})
+    {{ end }}
+	validator.StringList("names", req.GetNames()).IsPopulated()
+	validator.StringList("names", req.GetNames()).EachMatches(regex.{{ .ResourceName }})
+    // TODO: Add more validation rules here
+	if err := validator.Validate(); err != nil {
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+
+	{{ if .HasParent }}
+    // Ensure all names have the same parent
+	for _, name := range req.GetNames() {
+		if !strings.HasPrefix(name, req.GetParent()+"/") {
+			return nil, status.Errorf(codes.InvalidArgument, "all names must have the same parent: %s", req.GetParent())
+		}
+	}
+	{{ end }}
+
+	{{ if .HasPolicies }}
+    {{ if .HasParent }}
+	// Get the parent policy
+	parentPolicy, err := s.GetIamPolicy(ctx, &iampb.GetIamPolicyRequest{
+		Resource: req.GetParent(),
+	})
+	if err != nil && status.Code(err) != codes.NotFound {
+		return nil, err
+	}
+	// Add parent policy to the authorizer
+	az.AddPolicy(parentPolicy)
+    {{ end }}
+	if err = az.AuthorizeRpc(); err != nil {
+		return nil, err
+	}
+    {{ end }}
+
+	// READ MASK
+	readMask := req.GetReadMask()
+
+	// If read mask is not provided, use view settings
+	// If the view is not set, default to BASIC view
+	if len(readMask.GetPaths()) == 0 {
+		var err error
+		readMask, err = fieldmaskpb.New(&{{ .ImportAlias }}.{{ .ResourceName }}{}, "name", "etag")
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid field mask: %s", err.Error())
+		}
+		// If the view is FULL, no read mask is applied
+		if req.GetView() == {{ .ImportAlias }}.{{ .ResourceName }}View_{{ .ResourceNameUppercase }}_VIEW_FULL {
+			readMask.Paths = []string{}
+		}
+	}
+
+	// Read the resources from the database
+	rows, _, err := db.{{ .ResourceNamePlural }}.BatchRead(ctx, req.GetNames())
+	if err != nil {
+		return nil, err
+	}
+
+	// Create a map to hold the resources by name
+	resourcesMap := make(map[string]*{{ .ImportAlias }}.{{ .ResourceName }})
+	for _, row := range rows {
+		if row == nil || row.GetResource() == nil {
+			continue
+		}
+
+        {{ if .HasPolicies }}
+        // Only add the resource if the user has access to it
+		if !az.HasAccess({{ .ImportAlias }}.{{ .Service }}_Get{{ .ResourceName }}_FullMethodName, row.GetPolicy()) {
+			continue
+		}
+        {{ end }}
+
+		// Apply read mask to the row
+		if err := row.ApplyReadMask(readMask); err != nil {
+			return nil, err
+		}
+
+        // Add the resource to the map
+		resourcesMap[row.GetResource().GetName()] = row.GetResource()
+	}
+
+	// Return resources in the order requested.
+	// If a resource was not found, return nil for that resource.
+	var resources []*{{ .ImportAlias }}.{{ .ResourceName }}
+	for _, name := range req.GetNames() {
+		resources = append(resources, resourcesMap[name])
+	}
+
+	return &{{ .ImportAlias }}.BatchGet{{ .ResourceNamePlural }}Response{
+        {{ .ResourceNamePlural }}: resources,
+    }, nil
+}

@@ -1,0 +1,17 @@
+# Alis Provided Variables
+variable "ALIS_OS_VERSION" {}
+variable "ALIS_OS_PROJECT" {}
+variable "ALIS_OS_ORG_PROJECT" {}
+variable "ALIS_OS_PRODUCT_PROJECT" {}
+variable "ALIS_OS_DOMAIN" {}
+variable "ALIS_OS_NEURON_VERSION_COMMIT_SHA" {}
+variable "ALIS_OS_ORG_BACKEND_PRODUCT_PREFIX" {}
+variable "ALIS_REGION" {}
+variable "ALIS_PRODUCT_REGION" {}
+variable "ALIS_MANAGED_SPANNER_PROJECT" {}
+variable "ALIS_MANAGED_SPANNER_INSTANCE" {}
+variable "ALIS_MANAGED_SPANNER_DB" {}
+variable "ALIS_RUN_HASH" {}
+variable "ALIS_PRODUCT_CONFIG" {}
+
+# Custom Variables

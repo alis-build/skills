@@ -1,0 +1,52 @@
+package namers
+
+import (
+	"fmt"
+	"strings"
+)
+
+type {{ .RootResourceId }}Namer struct {
+	name  string
+	parts []string
+}
+
+// Returns new {{ .RootResourceId }} namer with method to extract the names and ids of the {{ .RootResourceId }} and its parents.
+func {{ .ResourceName }}(name string) (*{{ .RootResourceId }}Namer, error) {
+	parts := strings.Split(name, "/")
+	if len(parts) < {{ .MinParts }} {
+		return nil, fmt.Errorf("invalid {{ .RootResourceId }} name: %s", name)
+	}
+	return &{{ .RootResourceId }}Namer{
+		name:  name,
+		parts: parts,
+	}, nil
+}
+
+{{ define "Resource" }}
+// Returns the full name of the {{ .ResourceId }}
+// Format: {{ if .HasParents}}{{- range .Ancestors }}{{ .CollectionId }}/{{ .ResourceIdRegex }}/{{- end }}{{ end }}{{ .CollectionId }}/{{ .ResourceIdRegex }}
+func (n *{{ .RootResourceId }}Namer) {{ .ResourceName }}() string {
+	{{ if .IsAncestor }}
+	return strings.Join(n.parts[:{{ .MinParts }}], "/")
+	{{ else }}
+	return n.name
+	{{ end }}
+}
+
+// Returns the id of the {{ .ResourceId }}
+func (n *{{ .RootResourceId }}Namer) {{ if .IsAncestor }}{{ .ResourceName }}{{ end }}Id() string {
+	{{ if .IsAncestor }}
+	return n.parts[{{ .AncestorIdIndex }}]
+	{{ else }}
+	return n.parts[len(n.parts)-1]
+	{{ end }}
+}
+
+{{ if .HasParents }}
+{{ range .Ancestors }}
+{{ template "Resource" . }}
+{{ end }}
+{{ end }}
+{{ end }}
+
+{{ template "Resource" . }}
