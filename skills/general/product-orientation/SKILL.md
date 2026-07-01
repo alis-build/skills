@@ -5,12 +5,12 @@ description: >
   "orientate me", "what is this product", "give me a tour", "what are all these neurons", "walk
   me through the services", "what does each microservice do", or "how is this product deployed".
   Use it before starting work on an unfamiliar product, when someone needs the lay of the land
-  rather than a single answer. Produces a skimmable orientation: a product summary, an exhaustive
-  neuron overview table (each neuron's role, version, and deploy status), a selective deep dive on
-  a few key neurons, the environment/deployment picture, and the naming conventions used here. It
-  is strictly read-only — it explores and explains, it never changes anything. Not for authoring
-  or reviewing protos — use review-define. Not for the hands-on first-API onboarding walkthrough
-  that creates a neuron and runs Define, Build, Deploy — use getting-started.
+  rather than a single answer. Produces a staged orientation: first a brief product summary,
+  environment/deployment picture, compact neuron grouping, and a short "what matters next" prompt;
+  then, only if requested, a fuller neuron table and selective deep dives. It is strictly
+  read-only — it explores and explains, it never changes anything. Not for authoring or reviewing
+  protos — use review-define. Not for the hands-on first-API onboarding walkthrough that creates
+  a neuron and runs Define, Build, Deploy — use getting-started.
 metadata:
   alis.context.version: "1"
   alis.context.requires: >-
@@ -22,7 +22,9 @@ metadata:
 Help a developer who is new to an Alis Build **product** build an accurate mental model of it:
 what the product is, what each **neuron** (microservice) is for, how the neurons relate, and how
 the product is deployed. Keep an orienting tone — the goal is a map the developer can skim and
-then dive into, not an exhaustive code read.
+then dive into, not an exhaustive code read. Default to a **staged delivery**: first give a
+high-level orientation that is quick to read, then ask whether the developer wants the detailed
+overview or a deep dive into specific neurons.
 
 This skill is **read-only**. Explore with the read-only MCP tools and the files on disk, then
 **synthesise** a clear orientation. Never call a mutating tool (see Tools and sources). Never
@@ -55,7 +57,7 @@ only; use the entry for the current workstation.
 | Product | `product` / `product_id` | The `product_id` argument to `ViewProduct`. If absent, the last path segment of the build repo; else ask |
 | Build repo root | `session.working_directory` / `workstations.build_repos` | The folder the harness is running in (the product build repo). Default `<root>/<landing-zone>/build/<product>`, root default `~/alis.build` |
 | Define repo root | `workstations.define_repos` | The parent that holds this product's per-neuron define trees. Default `<root>/<landing-zone>/define/<org>/<product>`; confirm the folder before grepping |
-| Default deep-dive neuron | `focus_neuron_id` | If present, deep-dive this neuron first. If absent, pick a few key neurons yourself or ask which ones interest the developer |
+| Default deep-dive neuron | `focus_neuron_id` | If present, offer this as the first deep-dive target unless the user explicitly asked for detail up front. If absent, pick a few likely key neurons yourself for follow-up suggestions or ask which ones interest the developer |
 
 **Ids** are available directly as fields — do not parse resource names: `organisation_id` (the
 landing-zone id) and `product_id` feed `ViewProduct(landing_zone_id, product_id)` straight in.
@@ -112,25 +114,33 @@ it does not act.
   `*_KEY`, `*APIKEY`, credentials). See "Surfacing project/region facts" — surface only non-secret
   identifiers and **never print a secret value**.
 
-## Scale: a tiered approach
+## Scale: a staged approach
 
 A product can have **dozens** of neurons (the `os` product has ~50). Reading every proto and every
-`infra/` folder in full is expensive and overwhelming, and it buries the developer. Work in two
-tiers and be explicit about which is which:
+`infra/` folder in full is expensive and overwhelming, and it buries the developer. Work in stages
+and be explicit about which is which:
 
-1. **Fast, complete pass — every neuron.** Build one **neuron overview table** covering **all**
-   neurons. Get each neuron's role from a **single grep** across all proto files, its latest
-   version + status from the one `ViewProduct` result, the environments it is deployed to from
-   `ViewProduct` `environments[].deployments`, and its deployment capabilities from **which `.tf`
-   files exist** (a single `find` — do not read them). This pass is **exhaustive**: every neuron
-   gets a row.
-2. **Selective deep dive — a handful only.** Then dive deep on just the key neurons — the
-   `focus_neuron_id` if present, the few the developer names, or 3–5 you judge central (e.g. a
-   public-facing BFF, the data owners, the dependency hubs). For each, open its proto service, its
-   `cloudrun.tf`, note Spanner/Pub/Sub presence and its proto `import` dependencies.
+1. **Stage 1: high-level orientation — default response.** Build a compact product map that is
+   fast to produce and easy to skim: product purpose, environments, total neuron count, broad
+   neuron groups/themes, notable deployment capabilities, and DBD shape. Do **not** include the
+   full neuron table or deep dives in the first response unless the user explicitly asked for
+   detail up front.
+2. **Stage 2: detailed overview — only on request.** If the developer asks for more detail, build
+   one **neuron overview table** covering **all** neurons. Get each neuron's role from a **single
+   grep** across all proto files, its latest version + status from the one `ViewProduct` result,
+   the environments it is deployed to from `ViewProduct` `environments[].deployments`, and its
+   deployment capabilities from **which `.tf` files exist** (a single `find` — do not read them).
+   This pass is **exhaustive**: every neuron gets a row.
+3. **Stage 3: selective deep dive — only on request or clear intent.** Dive deep on just the key
+   neurons — the `focus_neuron_id` if present and relevant, the few the developer names, or 3–5
+   you judge central (e.g. a public-facing BFF, the data owners, the dependency hubs). For each,
+   open its proto service, its `cloudrun.tf`, note Spanner/Pub/Sub presence and its proto `import`
+   dependencies.
 
-**No silent truncation.** State the total neuron count, confirm the overview covers all of them,
-and say plainly which neurons you deep-dived and which you did not (e.g. "Deep dive: cli, accounts,
+**No silent truncation.** In Stage 1, state that the first response is intentionally high-level and
+ask whether the developer wants the full neuron table, a deep dive into selected neurons, or both.
+In Stage 2, state the total neuron count and confirm the overview covers all of them. In Stage 3,
+say plainly which neurons you deep-dived and which you did not (e.g. "Deep dive: cli, accounts,
 build (3 of 48); the rest are summarised in the table above — ask to drill into any of them").
 
 ## Efficiency rules
@@ -192,28 +202,42 @@ build (3 of 48); the rest are summarised in the table above — ask to drill int
    `display_name`, `description`, `project_id`, the `neurons[]` list (id, version, status), and
    `environments[]` (id, display_name, project_id, status, and the `deployments` map). This is the
    spine of the orientation.
-4. **Fast pass → neuron overview table** (every neuron). For each neuron in `neurons[]`:
+4. **Stage 1 high-level orientation.** Use the `ViewProduct` result, `.alis/agents/AGENTS.md`,
+   and lightweight filesystem facts to produce the first response:
+   - Product name, description, project, and environment count/status.
+   - Total neuron count and a compact grouping by clear prefixes/themes if visible from IDs and
+     folders (for example `build-*`, `iam-*`, `billing-*`); do not force themes if the IDs are
+     already clearer alphabetically.
+   - A short deployment picture: which environments exist, whether deployments are broad or sparse,
+     and any obvious production-only/no-DEV shape.
+   - A short DBD map: where Define, Build, and Deploy live for this product.
+   - A concise prompt asking what detail the developer wants next.
+5. **Only when the developer asks for a detailed overview: build the full neuron table** (every
+   neuron). For each neuron in `neurons[]`:
    - **Role** — from the single proto grep (step in Efficiency rules).
    - **Latest version · status** — from `ViewProduct` `neurons[]`.
    - **Deployed in** — the `environments[].display_name`s whose `deployments` map contains this
      neuron id; note the deployed version when it differs from the latest.
    - **Capabilities** — tags from the single infra `find`.
-5. **Deep dive** on the selected handful only (see Scale). For each: open the proto service for the
-   real role and method surface; read `import` lines for neuron-to-neuron dependencies (imports of
-   other `alis/<product>/<neuron-path>/<vN>/*.proto`); open `cloudrun.tf` for the image path
+6. **Only when the developer asks for a deep dive: deep dive** on the selected handful only (see
+   Scale). For each: open the proto service for the real role and method surface; read `import`
+   lines for neuron-to-neuron dependencies (imports of other
+   `alis/<product>/<neuron-path>/<vN>/*.proto`); open `cloudrun.tf` for the image path
    (`…/neurons/<neuron-id>/<subpath>:<sha>`), `container_port`, invoker IAM (`member = "allUsers"`
    ⇒ public; otherwise private/internal), and `service_account`; note Spanner tables / PROTO-typed
    columns from `spanner.tf` and topics from `pubsub.tf`; note multiple Dockerfiles (e.g. `bff/`,
    `tui/`) as separate containers the neuron ships.
-6. **Deployment & environments.** Summarise `environments[]` (id, display_name, GCP project_id,
+7. **Deployment & environments.** Summarise `environments[]` (id, display_name, GCP project_id,
    status) and, from the `deployments` maps, which neurons run where and at what version. Flag a
-   product with **no DEV environment** (Production-only) if that is the case.
-7. **DBD as applied here.** In one short section, tie it to this product: protos live in
+   product with **no DEV environment** (Production-only) if that is the case. In Stage 1, keep this
+   short; expand it in Stage 2 only if the developer asks for the detailed deployment picture.
+8. **DBD as applied here.** In one short section, tie it to this product: protos live in
    `<define-root>` (Define), implementation + Dockerfiles + `infra/` live in `<build-root>` (Build,
    Deploy). Use `ListDefines` to mention the latest definition version and which language packages
-   this product generates, and `ListBlockInstalls` to mention installed blocks. Keep it to the
-   shape of the loop, not a how-to (point at **getting-started** for the hands-on walkthrough).
-8. **Surfacing project/region facts.** Prefer `ViewProduct` for `project_id` and per-environment
+   this product generates, and `ListBlockInstalls` to mention installed blocks when producing the
+   detailed overview. In Stage 1, keep it to the shape of the loop, not a how-to (point at
+   **getting-started** for the hands-on walkthrough).
+9. **Surfacing project/region facts.** Prefer `ViewProduct` for `project_id` and per-environment
    projects. You may additionally read `<build-root>/.alis/.env` to surface **region** and
    **Spanner** identifiers, but surface **only** non-secret identifier keys — e.g. `ALIS_OS_PROJECT`,
    `ALIS_OS_PRODUCT_PROJECT`, `ALIS_OS_ORG_PROJECT`, `ALIS_PRODUCT_REGION`, `ALIS_REGION`,
@@ -247,24 +271,40 @@ Two asymmetries to remember:
   names never contain hyphens): `build-agent-v1` → `build/agent/v1`. The version is the `vN` leaf
   — never assume `v1`.
 
-## Output — the orientation
+## Output — staged orientation
 
-End with a single skimmable orientation the developer can read top to bottom:
+For the first response, end with a short, skimmable orientation the developer can read quickly:
 
 1. **Product summary** — `display_name`, `description`, GCP `project_id`, and the environments
    (id, display_name, project, status).
-2. **Neuron overview (all N neurons)** — the table from the fast pass, **grouped sensibly** (by a
+2. **High-level neuron map** — total neuron count and grouped themes/prefixes, with a few examples
+   per group. Do not include the exhaustive table in the first response unless explicitly requested.
+3. **Deployment picture** — environments and broad deployment shape, plus any important caveat
+   such as no DEV environment.
+4. **How DBD works here** — the short, product-specific loop from step 8.
+5. **What to look at next** — 2–4 concrete next options, phrased as choices the developer can make:
+   full neuron table, detailed deployment overview, deep dive into named neurons, or hands-on
+   **getting-started** / proto **review-define**.
+6. **Ask before detail** — close with one concise question asking whether they want more detail.
+   Good shape: "Want the detailed overview next: full neuron table, deployment details, or a deep
+   dive into specific neurons?"
+
+When the developer asks for the **detailed overview**, produce:
+
+1. **Neuron overview (all N neurons)** — the table from the fast pass, **grouped sensibly** (by a
    discernible theme/prefix if one exists, e.g. accounts/billing vs build/deploy vs ai; otherwise
    alphabetical). Columns: **Neuron | Role | Version · status | Deployed in | Capabilities**. State
    the total count and that the table is complete.
-3. **Deep dive** — the handful you sampled, each with its real role, key dependencies, deployment
-   shape (public/private, port, image), and data (Spanner/Pub/Sub). State explicitly which neurons
-   were deep-dived vs only summarised — no silent truncation.
-4. **How DBD works here** — the short, product-specific loop from step 7.
-5. **Conventions & naming** — the list above, with the concrete values seen in this product.
-6. **Where to go next** — concrete suggestions: pick a neuron to deep-dive (offer to drill into any
-   table row), run **getting-started** for a hands-on first API, or **review-define** to audit a
-   neuron's protos.
+2. **Expanded deployment & DBD details** — environment deployment versions, latest definition
+   version/package states, and installed blocks if available.
+3. **Follow-up question** — ask whether they want a deep dive into specific neurons.
+
+When the developer asks for a **deep dive**, produce:
+
+1. **Deep dive** — the selected handful, each with its real role, key dependencies, deployment
+   shape (public/private, port, image), and data (Spanner/Pub/Sub).
+2. **Coverage note** — state explicitly which neurons were deep-dived vs only summarised; no silent
+   truncation.
 
 ## Verification
 
@@ -272,19 +312,24 @@ End with a single skimmable orientation the developer can read top to bottom:
       build/define repo paths were used.
 - [ ] `ViewProduct` was called once with `landing_zone_id`/`product_id` from context (or recovered
       from the build-repo path), and the product summary came from it — no invented IDs.
-- [ ] The neuron overview table covers **all** neurons (count stated), built from a **single** proto
-      grep and a **single** infra `find` — not per-neuron full reads.
-- [ ] Each neuron's role came from its proto service leading comment (folder-name fallback noted
-      where no proto was available).
+- [ ] The first response was high-level by default: product summary, total neuron count/grouping,
+      environment picture, DBD map, and a clear question asking whether more detail is wanted.
+- [ ] The exhaustive neuron overview table was produced only when requested; when produced, it
+      covers **all** neurons (count stated), built from a **single** proto grep and a **single**
+      infra `find` — not per-neuron full reads.
+- [ ] When a detailed table was produced, each neuron's role came from its proto service leading
+      comment (folder-name fallback noted where no proto was available).
 - [ ] "Deployed in" / versions came from `ViewProduct` `environments[].deployments` — not invented.
 - [ ] Capabilities came from which `infra/*.tf` files exist; those `.tf` files were not all read.
-- [ ] The deep dive was limited to a handful (count stated); what was sampled vs skipped was stated
-      explicitly — nothing was silently truncated.
+- [ ] The deep dive was produced only when requested or clearly intended, limited to a handful
+      (count stated); what was sampled vs skipped was stated explicitly — nothing was silently
+      truncated.
 - [ ] Only non-secret `ALIS_*` project/region/Spanner identifiers were surfaced; no token, key, or
       secret value was printed; project/environment facts were preferred from `ViewProduct`.
 - [ ] No mutating tool was called (no Create/Prepare/Run*/Install*/Clone*/Pull*/Push*/SpecIt/
       RequestSkill); the whole session was read-only.
-- [ ] The output ends with a skimmable orientation: product summary, grouped neuron table, deep
-      dive, DBD-as-applied-here, conventions, and where-to-go-next.
+- [ ] The output ends with a staged, skimmable orientation: first a high-level summary and request
+      for the developer's preferred next level of detail; later responses add the full table or
+      deep dives only when requested.
 - [ ] If a runtime-context block was present, its org/product/paths were used verbatim and nothing
       was re-derived or re-asked.
