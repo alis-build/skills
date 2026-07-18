@@ -172,6 +172,7 @@ Notes:
    ```
 
    The command should return no matches. If it finds one, finish that migration before building.
+   A Docker image build is not required to complete this migration.
 2. Validate each regular service module with:
 
    ```bash
@@ -190,15 +191,13 @@ Notes:
 
    Do not use `go test -run '^$' ./...` as a compile-only check: package initialization or
    `TestMain` can still run and may fail while acquiring credentials or contacting DEV.
-3. Build each affected Docker image so its registry configuration is tested inside the build
-   environment.
-4. Run `alis packages upgrade <service-package-id>` and verify that it upgrades only the scoped
+3. Run `alis packages upgrade <service-package-id>` and verify that it upgrades only the scoped
    `alis.build/<org>/<product>/<neuron>` package in each applicable module, including the
    playground, without printing the legacy-package migration hint.
-5. After the scoped upgrade completes, repeat the legacy scan and the module checks above. The
+4. After the scoped upgrade completes, repeat the legacy scan and the module checks above. The
    migration is complete only when the scan is still empty, regular service modules build and
    vet, and test-only playground modules compile and vet.
-6. Treat running a playground against DEV as a separate end-to-end check. Run it only with the
+5. Treat running a playground against DEV as a separate end-to-end check. Run it only with the
    required application credentials or identity-token support available; an `Unauthenticated`
    token-source failure is an environment/authentication failure, not a compile failure.
 
