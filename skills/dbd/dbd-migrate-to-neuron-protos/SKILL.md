@@ -172,12 +172,35 @@ Notes:
    ```
 
    The command should return no matches. If it finds one, finish that migration before building.
-2. Run `go build ./...` and `go vet ./...` in each Go module in the service folder.
+2. Validate each regular service module with:
+
+   ```bash
+   go vet ./...
+   go build ./...
+   ```
+
+   Treat a test-only playground module separately. If it contains `main_test.go` but no
+   non-test `main` function, `go build` is not an applicable validation and may correctly report
+   that no `main` function exists. Vet it and compile its test binary without running tests:
+
+   ```bash
+   go vet ./...
+   go test -c -o /tmp/<service>-playground.test
+   ```
+
+   Do not use `go test -run '^$' ./...` as a compile-only check: package initialization or
+   `TestMain` can still run and may fail while acquiring credentials or contacting DEV.
 3. Build each affected Docker image so its registry configuration is tested inside the build
    environment.
-4. `alis packages upgrade <service-package-id>` now prints a scoped
-   `go get -u alis.build/...` command **without** the legacy-package migration hint.
-5. If the service has a playground (`.playground/main_test.go`), run it against DEV.
+4. Run `alis packages upgrade <service-package-id>` and verify that it upgrades only the scoped
+   `alis.build/<org>/<product>/<neuron>` package in each applicable module, including the
+   playground, without printing the legacy-package migration hint.
+5. After the scoped upgrade completes, repeat the legacy scan and the module checks above. The
+   migration is complete only when the scan is still empty, regular service modules build and
+   vet, and test-only playground modules compile and vet.
+6. Treat running a playground against DEV as a separate end-to-end check. Run it only with the
+   required application credentials or identity-token support available; an `Unauthenticated`
+   token-source failure is an environment/authentication failure, not a compile failure.
 
 ## JavaScript (not yet automated)
 
