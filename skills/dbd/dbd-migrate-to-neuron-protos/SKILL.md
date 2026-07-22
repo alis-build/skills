@@ -13,8 +13,7 @@ description: >
 metadata:
   alis.context.version: "1"
   # Context field paths this skill needs from the injected runtime context.
-  alis.context.requires: >-
-    focus_package_id workstations
+  alis.context.requires: session.working_directory
 ---
 
 # Migrate to per-neuron proto packages
@@ -46,10 +45,19 @@ module/import plumbing changes.
 This skill may be loaded with an `<alis-runtime-context>` block injected at the top of these
 instructions. **When the block is present, its values are authoritative.**
 
-| Value                 | Context field      | If absent, how to obtain it                                                       |
-| --------------------- | ------------------ | --------------------------------------------------------------------------------- |
-| **Service package ID**| `focus_package_id` | The dotted package ID of the service being migrated, e.g. `alis.os.mcp.v1`. Otherwise derive from the service folder (`~/alis.build/<org>/build/<product>/<service>/<vN>`) or ask the user. |
-| **Service folder**    | `workstations`     | The focused workstation's build repo; otherwise `~/alis.build/<org>/build/<product>/<service>/<vN>`. |
+| Value              | Context field               | If absent, how to obtain it |
+| ------------------ | --------------------------- | --------------------------- |
+| **Migration root** | `session.working_directory` | Use the process's current working directory (`pwd`). |
+
+**The migration root is authoritative.** The TUI/Flows harness launches in the neuron selected
+by the developer, for example the build folder for `alis.bl.users.v1`. Inspect and modify only
+that directory tree. Do not derive a product or service folder from the skill's own location,
+the prompt's product name, `focus_package_id`, a hard-coded `os` path, or another repository.
+
+Before changing files, run `pwd` and briefly confirm the folder looks like the intended neuron
+build root (normally it contains a `go.mod` and may contain `infra/`, `.playground/`, `events/`,
+or nested modules). If it does not look like a service build folder, stop and ask the user to
+open the flow from the intended service rather than searching sibling products or services.
 
 ## The mapping rule
 
@@ -88,10 +96,11 @@ Notes:
 
 ## Go procedure
 
-1. **Inventory the legacy imports** in the service folder:
+1. **Inventory the legacy imports** under the migration root:
 
    ```bash
-   grep -rEn 'internal\.[a-z0-9]+\.[a-z.]+/protobuf/' --include='*.go' .
+   pwd
+   rg -n 'internal\.[a-z0-9]+\.[a-z.]+/protobuf/' -g '*.go' .
    ```
 
    Collect the distinct `<org>/<product>/<neuron-path>/<vN>` suffixes.
@@ -108,7 +117,7 @@ Notes:
    pb "alis.build/alis/os/mcp"
    ```
 
-3. **Update every Dockerfile in the service folder**, including Dockerfiles in nested components:
+3. **Update every Dockerfile under the migration root**, including Dockerfiles in nested components:
 
    ```bash
    rg --files -g 'Dockerfile*' .
@@ -138,11 +147,12 @@ Notes:
    ```
 
 4. **Install the new packages after the import and Dockerfile changes**. Run the CLI from the
-   focused service folder; it resolves all required per-neuron modules, supplies the correct
+   migration root; it resolves the selected neuron from the current directory, installs all
+   required per-neuron modules, supplies the correct
    `GOPROXY`/`GONOSUMDB`, and runs `go mod tidy`:
 
    ```bash
-   alis packages install <service-package-id>
+   alis packages install --json
    ```
 
    Compare any product `define-go` registry list reported by the command with the Dockerfiles and
@@ -191,7 +201,7 @@ Notes:
 
    Do not use `go test -run '^$' ./...` as a compile-only check: package initialization or
    `TestMain` can still run and may fail while acquiring credentials or contacting DEV.
-3. Run `alis packages upgrade <service-package-id>` and verify that it upgrades only the scoped
+3. From the same migration root, run `alis packages upgrade --json` and verify that it upgrades only the scoped
    `alis.build/<org>/<product>/<neuron>` package in each applicable module, including the
    playground, without printing the legacy-package migration hint.
 4. After the scoped upgrade completes, repeat the legacy scan and the module checks above. The
