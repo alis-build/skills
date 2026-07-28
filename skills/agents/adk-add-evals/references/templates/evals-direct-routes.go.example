@@ -1,0 +1,50 @@
+// Greenfield reference ONLY — Pattern B: direct host routes.
+// Do not copy file names or paths blindly. Discover where peer Setup*Routes live
+// (e.g. SetupAGUIRoutes, SetupSchedulerRoutes) and match that layout.
+//
+// Contract:
+//   webevals.NewLauncher(opts...) -> HostRouteSetup -> SetupHostRoutes(launcherConfig)
+// Reuse existing LauncherConfig() if the repo already has one for agui/scheduler.
+
+package agent
+
+import (
+	"log"
+	"os"
+
+	evalmetrics "REPLACE_WITH_YOUR_MODULE/internal/evals/metrics"
+	webevals "go.alis.build/adk/launchers/evals"
+	launchersweb "go.alis.build/adk/launchers/web"
+	"google.golang.org/genai"
+)
+
+// SetupEvalsRoutes registers eval dev HTTP routes on the host mux.
+// Call from server main alongside other Setup*Routes functions.
+func SetupEvalsRoutes(judgeClient *genai.Client) {
+	opts := []webevals.Option{
+		webevals.WithMetricRegistry(evalmetrics.NewRegistry(judgeClient, evalmetrics.DefaultJudgeModel)),
+	}
+	if bucket := os.Getenv("AGENT_EVALS_BUCKET"); bucket != "" {
+		opts = append(opts, webevals.WithEvalStorageURI("gs://"+bucket))
+	}
+	// Standard: require AGENT_EVALS_BUCKET (infra + env). Use WithAgentsDir only when user explicitly asks for local disk.
+
+	l := webevals.NewLauncher(opts...)
+	hr, ok := l.(launchersweb.HostRouteSetup)
+	if !ok {
+		log.Fatal("evals launcher missing HostRouteSetup")
+	}
+	if err := hr.SetupHostRoutes(LauncherConfig()); err != nil {
+		log.Fatalf("evals routes: %v", err)
+	}
+}
+
+// LauncherConfig() — reuse existing adapter from agui/scheduler wiring; example:
+//
+// func LauncherConfig() *launcher.Config {
+//     return &launcher.Config{
+//         SessionService:  Config.SessionService,
+//         AgentLoader:     agent.NewSingleLoader(Config.Agent),
+//         ...
+//     }
+// }

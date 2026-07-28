@@ -1,0 +1,20 @@
+# GCS bucket for ADK eval sets and results.
+# Bucket name: {NeuronId}-agent-evals (local.neuron must match central NeuronId).
+
+resource "google_storage_bucket" "agent-evals" {
+  project       = var.ALIS_OS_PROJECT
+  name          = "${local.neuron}-agent-evals"
+  location      = var.ALIS_REGION
+  force_destroy = true
+
+  uniform_bucket_level_access = true
+}
+
+# Grant the agent service account object read/write on this bucket.
+# Example (adjust service account to match your Cloud Run config):
+#
+# resource "google_storage_bucket_iam_member" "agent-evals-writer" {
+#   bucket = google_storage_bucket.agent-evals.name
+#   role   = "roles/storage.objectAdmin"
+#   member = "serviceAccount:alis-build@${var.ALIS_OS_PROJECT}.iam.gserviceaccount.com"
+# }
