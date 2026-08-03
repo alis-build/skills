@@ -78,7 +78,7 @@ instructions. **When the block is present, its values are authoritative.**
 | **Migration root** | `session.working_directory` | Use the process's current working directory (`pwd`). |
 
 **The migration root is authoritative.** The TUI/Flows harness launches in the neuron selected
-by the developer, for example the build folder for `alis.bl.users.v1`. Inspect and modify only
+by the developer, for example the build folder for `<org>.<product>.<neuron>.v1`. Inspect and modify only
 that directory tree. Do not derive a product or service folder from the skill's own location,
 the prompt's product name, `focus_package_id`, a hard-coded `os` path, or another repository.
 
@@ -192,14 +192,21 @@ Split packages declare dependencies on each other (e.g. `@alis-build/alis-open-i
 `define-ecmascript` (private Artifact Registry). `@alis-build/*` (with a hyphen) = shared common
 stubs on public npm.
 
-**`.npmrc` for `@alis.build/*`:** a single `@alis.build:registry=...` line is only safe when
-every `@alis.build/*` dependency comes from one product registry. Cross-product imports need
-**per-package** registry lines — see
-[`references/javascript-protobuf-es.md`](references/javascript-protobuf-es.md) Step 3.
+**`.npmrc` for `@alis.build/*`:** registry routing is **scope-level only** — npm and pnpm both
+silently ignore per-package registry lines (`@alis.build/<pkg>:registry=...`), so a single
+`@alis.build:registry=...` line pointing at one product registry is the only routing that works.
+Cross-product `@alis.build/*` dependencies cannot be routed via `.npmrc` at all — see
+[`references/javascript-protobuf-es.md`](references/javascript-protobuf-es.md) Step 3 for the
+workarounds.
 
 Module paths mirror the proto package with a trailing `.v1` dropped (`alis.open.iam.v1` →
 `.../alis/open/iam`); `v2+` majors keep their suffix. The old paths are frozen: already
 published versions keep resolving, but new versions appear only under the vanity / split path.
+
+**Go: never require the `go.alis.build/common` module root itself.** A retired monolith was
+once published at that exact root (≤ v1.1.16) bundling many proto packages; it overlaps the
+per-package split modules and linking both panics with `proto: file ... is already registered`.
+Only the per-package split modules (`go.alis.build/common/<pkg-path>`) are supported.
 
 **The all-or-nothing rule.** Both paths contain byte-identical proto types registering the
 same proto file names. If one binary or bundle links both copies — even one directly and one

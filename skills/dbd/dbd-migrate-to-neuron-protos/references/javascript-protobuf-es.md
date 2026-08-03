@@ -137,35 +137,49 @@ Ensure `"type": "module"` when the bundler expects ESM (Vite, modern Node).
 
 Remove per-product `@internal.*` `protobuf-javascript-internal` scope lines.
 
-**Single-product apps** (every `@alis.build/*` dep from one define-ecmascript registry) may use
-a scope-wide line:
+Registry routing in `.npmrc` is **scope-level only**. Both pnpm and npm **silently ignore
+per-package registry lines** (`@alis.build/<pkg>:registry=...`) — the request falls through to
+the default registry (npmjs) and fails with:
+
+```
+ERR_PNPM_FETCH_404  GET https://registry.npmjs.org/@alis.build%2F<package>: Not Found - 404
+```
+
+That npmjs URL in the error is the tell: the scope was not routed. Do not add per-package
+lines — they verifiably do nothing. Beware the failure can stay hidden: packages already
+pinned in the lockfile keep resolving from the store, so an ignored line only surfaces when a
+new dependency forces a fresh resolution.
+
+Point the scope at the app's own product registry:
 
 ```ini
 @alis.build:registry=https://<region>-npm.pkg.dev/<project>/define-ecmascript
 ```
 
-**Cross-product imports** — when the app consumes `@alis.build/*` packages published from
-different product registries (the common case for large frontends that previously had multiple
-`@internal.<product>.<domain>` scope lines) — **do not** use a single `@alis.build:registry`.
-Each package resolves from the owning product's `define-ecmascript` repository. Add one line per
-distinct `@alis.build` package, mirroring how legacy `.npmrc` mapped each `@internal.*` scope:
+**Cross-product imports** — when the app consumes `@alis.build/*` packages published from a
+*different* product's registry — cannot be routed via `.npmrc`, since the single scope line
+already points at the app's own product. Until the platform provides one aggregated registry
+for the whole scope, use one of:
 
-```ini
-@alis.build/alis-bl-blocks-v1:registry=https://europe-west1-npm.pkg.dev/alis-bl-product-r4e/define-ecmascript
-@alis.build/alis-ws-controller-v1:registry=https://europe-west1-npm.pkg.dev/alis-ws-product-b9o/define-ecmascript
-```
+1. **Direct tarball-URL dependency** (verified to work with pnpm): depend on the exact tarball
+   in `package.json`:
 
-General form:
+   ```json
+   "@alis.build/<package-id-dashed>": "https://<region>-npm.pkg.dev/<owning-project>/define-ecmascript/@alis.build/<package-id-dashed>/-/@alis.build/<package-id-dashed>-<version>.tgz"
+   ```
 
-```ini
-@alis.build/<package-id-dashed>:registry=https://<region>-npm.pkg.dev/<project>/define-ecmascript
-```
+   where `<package-id-dashed>` is e.g. `<org>-<product>-<neuron>-v1` and `<owning-project>` is
+   the owning product's Google project. Get the exact URL from
+   `npm view @alis.build/<package-id-dashed> dist.tarball --registry=<owning registry>`. The
+   version is pinned in the URL (bump it per release), and the owning registry's credentials
+   must be fresh (`alis authorise <org>.<product>` / `alis packages install` — the
+   `_authToken` lines are short-lived).
 
-where **package id dashed** matches the npm package name (e.g. `alis.bl.blocks.v1` →
-`@alis.build/alis-bl-blocks-v1`).
+2. **Mirroring**: republish the package into the app's own `define-ecmascript` registry so the
+   scope line covers it. Must be repeated for every new release of the mirrored package.
 
-After `alis packages install --json`, compare the registry list the CLI reports with `.npmrc`
-and align them — the CLI accounts for every cross-product `@alis.build/*` dependency.
+If neither is acceptable, stop and flag it — do not ship an `.npmrc` with per-package lines
+that appear to work only because of the lockfile.
 
 Keep `@open.alis.services` (or other scopes) pointed at `openprotos-javascript` until those
 packages publish protobuf-es builds — do not force-migrate open imports without a published
@@ -185,8 +199,9 @@ alis packages install --json
 ```
 
 The CLI resolves the neuron from the current directory, installs required `@alis.build/*`
-modules, and reports which per-package `@alis.build/<package-id-dashed>:registry=...` lines
-belong in `.npmrc` — especially for cross-product graphs.
+modules, and refreshes registry credentials. If it reports registries beyond the app's own
+product, those are cross-product dependencies — handle them per Step 3 (tarball URL or
+mirroring), **not** with per-package `.npmrc` lines, which npm and pnpm ignore.
 
 Fallback when the CLI is unavailable:
 
@@ -296,7 +311,8 @@ the same proto causes registration panics.
      -g '*.ts' -g '*.tsx' -g '*.vue' -g 'package.json' -g '.npmrc' -g 'Dockerfile*' .
    ```
 
-2. `pnpm run type-check` (or `vue-tsc --build`) passes.
+2. `pnpm run type-check` (or `vue-tsc --build`) passes — **mandatory**, not optional: enum
+   member renaming (see Part B) is invisible to `vite build`.
 3. `pnpm run build` passes.
 4. `pnpm why google-protobuf`, `pnpm why grpc-web`, `pnpm why @alis-build/google-common-protos`,
    and `pnpm why @alis-build/common-es` report no dependency chain.
@@ -368,6 +384,25 @@ No separate `_grpc_web_pb` or `_connect.ts` files — service descriptors live i
 | `.../foo_pb` → class `Foo`                           | `.../foo_pb` → `Foo`, `FooSchema`                                  |
 | `google-protobuf/.../field_mask_pb`                  | field `{ paths: [...] }` in `create()` or `@bufbuild/protobuf/wkt` |
 | `google-protobuf/.../timestamp_pb`                   | `@bufbuild/protobuf/wkt` `Timestamp`                               |
+
+### Enum member renaming — silent migration hazard
+
+protoc-gen-es **strips the redundant enum-name prefix** from member names. A mechanical path
+swap leaves the old member names compiling in appearance but broken:
+
+| Legacy (jspb)                       | Protobuf-ES                |
+| ----------------------------------- | -------------------------- |
+| `Release.Product.PRODUCT_IDEATE`    | `Release_Product.IDEATE`   |
+| `Release.Category.CATEGORY_FEATURE` | `Release_Category.FEATURE` |
+| `ReleaseView.RELEASE_VIEW_FULL`     | `ReleaseView.FULL`         |
+
+Rules: nested enums flatten to `Parent_Enum` names, and any member prefix matching the enum
+name (UPPER_SNAKE of `ReleaseView` → `RELEASE_VIEW_`) is removed.
+
+**This is invisible to `vite build`** (which skips type checking) — it only surfaces under
+`vue-tsc` / `tsc`. A migration validated with build-only commands can ship broken enum
+references. Always run the type-check step in **Verify**; never sign off on `pnpm run build`
+alone.
 
 ### Client wiring
 
@@ -596,10 +631,26 @@ receive the Connect client instead — same service, different type surface.
 
 ### Generated package expectations
 
-- One `_pb.js` + `_pb.d.ts` per proto file (no `_grpc_web_pb`).
-- Cross-package imports in generated JS reference `@alis.build/*` and `@alis-build/*` peers.
-- Generated packages declare peer deps on `@bufbuild/protobuf` and `@connectrpc/*` — satisfy
-  them at the app level.
+- One `_pb.js` + `_pb.d.ts` per proto file (no `_grpc_web_pb`), plus root `index.js` /
+  `index.d.ts` entrypoints re-exporting every module.
+- Cross-package imports in generated JS are **bare package specifiers** (`@alis-build/*` for
+  common stubs, `@alis.build/*` for other neurons), each declared in `dependencies`.
+- The runtime libraries (`@bufbuild/protobuf`, `@connectrpc/connect`,
+  `@connectrpc/connect-web`) are declared as **`peerDependencies`**, so the app resolves a
+  single shared copy of the protobuf runtime. pnpm ≥ 8 and npm ≥ 7 auto-install peers; keep
+  the app-level versions from Step 2 compatible (`^2.x`).
+
+**Stale published versions:** packages generated before the import-validation fix
+(≈ 2026-08) can ship broken *relative* cross-package imports that only fail when the bundler
+reaches the module, e.g.:
+
+```
+Could not resolve "../../type/expr_pb" from node_modules/.../@alis-build/google-iam-v1/...
+```
+
+The fix is to **upgrade the package to its latest version** (e.g. `@alis-build/google-iam-v1`
+≥ 1.2.0) — republished versions have bare specifiers and correct dependencies. Do not
+`pnpm patch` `node_modules`; if no fixed version exists, request a re-define of that package.
 
 ### Migration order for large apps
 

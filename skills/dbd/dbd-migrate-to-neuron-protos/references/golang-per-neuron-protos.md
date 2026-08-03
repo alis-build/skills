@@ -41,17 +41,18 @@ mapping rule, and the public-stubs invariant. This document is the **Go procedur
      modules and no longer need the legacy Artifact Registry proxy.
    - Preserve `https://proxy.golang.org,direct` at the end of `GOPROXY`.
 
-   Example:
+   Example (placeholders: `<region>`, `<project-a>`/`<project-b>` = the products' Google
+   projects, `<org-project>` = the organisation project):
 
    ```dockerfile
-   ENV GOPROXY=https://europe-west1-go.pkg.dev/alis-os-product-w4apgtd/protobuf-go-internal,https://europe-west1-go.pkg.dev/alis-bl-product-r4e/protobuf-go-internal,https://europe-west1-go.pkg.dev/alis-org-777777/openprotos-go,https://proxy.golang.org,direct
-   ENV GONOSUMDB=internal.bl.alis.services/protobuf,internal.os.alis.services/protobuf,open.alis.services/protobuf
+   ENV GOPROXY=https://<region>-go.pkg.dev/<project-a>/protobuf-go-internal,https://<region>-go.pkg.dev/<project-b>/protobuf-go-internal,https://<region>-go.pkg.dev/<org-project>/openprotos-go,https://proxy.golang.org,direct
+   ENV GONOSUMDB=internal.<product-b>.alis.services/protobuf,internal.<product-a>.alis.services/protobuf,open.alis.services/protobuf
    ```
 
    becomes:
 
    ```dockerfile
-   ENV GOPROXY=https://europe-west1-go.pkg.dev/alis-os-product-w4apgtd/define-go,https://europe-west1-go.pkg.dev/alis-bl-product-r4e/define-go,https://proxy.golang.org,direct
+   ENV GOPROXY=https://<region>-go.pkg.dev/<project-a>/define-go,https://<region>-go.pkg.dev/<project-b>/define-go,https://proxy.golang.org,direct
    ENV GONOSUMDB=alis.build
    ```
 
