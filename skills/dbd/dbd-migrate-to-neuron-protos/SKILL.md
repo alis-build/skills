@@ -134,8 +134,10 @@ Notes:
   existing import alias** (`pb "…"` stays `pb "…"`) so no Go call site changes.
 - JavaScript: `_grpc_web_pb` suffix becomes `_pb`; `*PromiseClient` becomes `*Service`
   (Connect `createClient`).
-- Cross-product legacy imports map by the same rule; they resolve through the accessible
-  products' `define-go` / `define-ecmascript` registries.
+- Cross-product legacy imports map by the same rule. The platform distributes packages of a
+  product's accessible products into that product's own `define-go` / `define-ecmascript`
+  registries, so they resolve without extra registry configuration (Go additionally falls
+  through the multi-entry GOPROXY).
 - Do not touch `open.alis.services/protobuf` / `open.standards.exchange/protobuf` imports
   (open/standards protos) or `go.alis.build/*` helper libraries — they are not part of this
   per-neuron scheme. (Legacy common-stub imports — `github.com/alis-build/public-go`,
@@ -194,10 +196,11 @@ stubs on public npm.
 
 **`.npmrc` for `@alis.build/*`:** registry routing is **scope-level only** — npm and pnpm both
 silently ignore per-package registry lines (`@alis.build/<pkg>:registry=...`), so a single
-`@alis.build:registry=...` line pointing at one product registry is the only routing that works.
-Cross-product `@alis.build/*` dependencies cannot be routed via `.npmrc` at all — see
+`@alis.build:registry=...` line pointing at the app's own product registry is the only routing
+that works — and it is sufficient: cross-product `@alis.build/*` packages are distributed into
+that registry automatically for the product's accessible products. See
 [`references/javascript-protobuf-es.md`](references/javascript-protobuf-es.md) Step 3 for the
-workarounds.
+404 troubleshooting path.
 
 Module paths mirror the proto package with a trailing `.v1` dropped (`alis.open.iam.v1` →
 `.../alis/open/iam`); `v2+` majors keep their suffix. The old paths are frozen: already

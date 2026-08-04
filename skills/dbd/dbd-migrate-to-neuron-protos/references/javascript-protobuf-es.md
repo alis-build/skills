@@ -156,30 +156,20 @@ Point the scope at the app's own product registry:
 @alis.build:registry=https://<region>-npm.pkg.dev/<project>/define-ecmascript
 ```
 
-**Cross-product imports** — when the app consumes `@alis.build/*` packages published from a
-*different* product's registry — cannot be routed via `.npmrc`, since the single scope line
-already points at the app's own product. Until the platform provides one aggregated registry
-for the whole scope, use one of:
+**Cross-product imports** — `@alis.build/*` packages owned by a *different* product — resolve
+from the app's **own** product registry too: the platform distributes every package of a
+product's *accessible products* (plus their `@alis.build/*` dependency closure) into that
+product's `define-ecmascript` repo, both when access is granted and on every new define of the
+source package. The single scope line above therefore covers cross-product packages as well —
+no tarball URLs, no mirroring, no extra registry lines.
 
-1. **Direct tarball-URL dependency** (verified to work with pnpm): depend on the exact tarball
-   in `package.json`:
+If a cross-product package still returns 404 from the own product registry:
 
-   ```json
-   "@alis.build/<package-id-dashed>": "https://<region>-npm.pkg.dev/<owning-project>/define-ecmascript/@alis.build/<package-id-dashed>/-/@alis.build/<package-id-dashed>-<version>.tgz"
-   ```
-
-   where `<package-id-dashed>` is e.g. `<org>-<product>-<neuron>-v1` and `<owning-project>` is
-   the owning product's Google project. Get the exact URL from
-   `npm view @alis.build/<package-id-dashed> dist.tarball --registry=<owning registry>`. The
-   version is pinned in the URL (bump it per release), and the owning registry's credentials
-   must be fresh (`alis authorise <org>.<product>` / `alis packages install` — the
-   `_authToken` lines are short-lived).
-
-2. **Mirroring**: republish the package into the app's own `define-ecmascript` registry so the
-   scope line covers it. Must be repeated for every new release of the mirrored package.
-
-If neither is acceptable, stop and flag it — do not ship an `.npmrc` with per-package lines
-that appear to work only because of the lockfile.
+1. Confirm the owning product is listed under the app's product **accessible products**
+   (console → product → Manage Accessible Products, or `AddAccessibleProduct`). Adding it
+   triggers the distribution automatically.
+2. If access was already granted, the package may predate distribution — re-run Define for
+   that package (its next version distributes automatically), or flag it on a support ticket.
 
 Keep `@open.alis.services` (or other scopes) pointed at `openprotos-javascript` until those
 packages publish protobuf-es builds — do not force-migrate open imports without a published
@@ -199,9 +189,9 @@ alis packages install --json
 ```
 
 The CLI resolves the neuron from the current directory, installs required `@alis.build/*`
-modules, and refreshes registry credentials. If it reports registries beyond the app's own
-product, those are cross-product dependencies — handle them per Step 3 (tarball URL or
-mirroring), **not** with per-package `.npmrc` lines, which npm and pnpm ignore.
+modules, and refreshes registry credentials. Cross-product dependencies resolve from the app's
+own product registry (see Step 3) — never add per-package `.npmrc` lines, which npm and pnpm
+ignore.
 
 Fallback when the CLI is unavailable:
 
