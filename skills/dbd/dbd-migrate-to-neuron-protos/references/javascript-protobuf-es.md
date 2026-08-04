@@ -171,9 +171,13 @@ If a cross-product package still returns 404 from the own product registry:
 2. If access was already granted, the package may predate distribution — re-run Define for
    that package (its next version distributes automatically), or flag it on a support ticket.
 
-Keep `@open.alis.services` (or other scopes) pointed at `openprotos-javascript` until those
-packages publish protobuf-es builds — do not force-migrate open imports without a published
-`@alis.build` or `@alis-build` replacement.
+`@open.alis.services/protobuf` (jspb open-protos monolith) migrates to the per-proto-package
+`@alis-build/alis-open-*` split packages on **public npm** — the same mapping rule as the other
+legacy monoliths (`alis.open.iam.v1` → `@alis-build/alis-open-iam-v1`, subpath unchanged with
+`_pb` instead of `_grpc_web_pb`). This is the intended JavaScript successor; the Go-side "do not
+touch `open.alis.services`" note does not apply to npm. Verify the split package is published
+before migrating a given proto package; once no files import the legacy package, drop the
+`@open.alis.services` scope line entirely.
 
 `@alis-build/*` common stubs resolve from **public npm** — no Artifact Registry registry line
 needed for those packages.

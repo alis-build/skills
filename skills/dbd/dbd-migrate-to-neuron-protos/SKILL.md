@@ -164,6 +164,7 @@ Public common stubs moved from legacy monolith paths to per-proto-package module
 | -------------------- | ---------------------------------- | ----------------------------------------------------------------------------------------- |
 | grpc-web monolith    | `@alis-build/google-common-protos` | Google + grpc-web stubs (`*_grpc_web_pb`)                                                 |
 | grpc-web monolith    | `@alis-build/common`               | Broader monolith (google + `alis/open/*`, etc.)                                           |
+| jspb open monolith   | `@open.alis.services/protobuf`     | `alis.open.*` jspb stubs from the org registry (`openprotos-javascript` scope line)       |
 | protobuf-es monolith | `@alis-build/common-es`            | Intermediate bundle — overlaps split packages; **do not target as the final destination** |
 
 **Target:** one npm package per proto `package`, published as `@alis-build/<proto-package-dashed>`
@@ -181,6 +182,8 @@ Examples (legacy path → split target):
 | `@alis-build/google-common-protos/google/longrunning/...` | `@alis-build/google-longrunning/google/longrunning/...`                     |
 | `@alis-build/common-es/alis/open/iam/v1/...`              | `@alis-build/alis-open-iam-v1/alis/open/iam/v1/...`                         |
 | `@alis-build/common-es/alis/open/agent/v1/...`            | `@alis-build/alis-open-agent-v1/alis/open/agent/v1/...`                     |
+| `@open.alis.services/protobuf/alis/open/iam/v1/...`       | `@alis-build/alis-open-iam-v1/alis/open/iam/v1/...`                         |
+| `@open.alis.services/protobuf/alis/open/support/v1/...`   | `@alis-build/alis-open-support-v1/alis/open/support/v1/...`                 |
 | `@alis-build/common/...`                                  | Map by proto file path to the matching split package (same layout as above) |
 
 Other published split packages include `@alis-build/google-rpc`, `@alis-build/google-type`,
