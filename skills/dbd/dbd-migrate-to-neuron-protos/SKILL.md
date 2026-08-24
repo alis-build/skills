@@ -8,7 +8,8 @@ description: >
   "@internal.<product>.<domain>/protobuf", "google-protobuf", "grpc-web", or migration from
   grpc-web to protoc-gen-es / Protobuf-ES ("@bufbuild/protobuf", "@connectrpc/connect",
   "@alis.build/*"). Target Go modules: "alis.build/..."; target npm packages:
-  "@alis.build/<package-id-dashed>". Also covers the companion public-stubs upgrade: Go
+  "@alis.build/<package-id-dashed>"; target Python pip packages: "<focus_package_id>"
+  (dots kept; pip normalizes to hyphens). Also covers the companion public-stubs upgrade: Go
   "github.com/alis-build/public-go/..." to "go.alis.build/common/..."; JavaScript
   legacy "@alis-build/google-common-protos", "@alis-build/common", or "@alis-build/common-es"
   to individual "@alis-build/<proto-package-dashed>" packages on public npm. Triggers:
@@ -16,11 +17,14 @@ description: >
   the migration hint after `alis packages upgrade` or the 'u' key, build failures resolving
   legacy modules, startup/test panic "proto: file ... is already registered", handler
   "does not implement" have/want mismatches between old and new stub paths, or "module
-  declares its path as" errors. Read SKILL.md first, then the language reference for your
-  migration root. Go: rewrites go.mod, imports, and Dockerfile GOPROXY/GONOSUMDB, then
-  `alis packages install`. JavaScript: manual, fully documented in references. Python: not
-  yet automated. Package plumbing only — no business logic. Public-stub migration may
-  require re-running Define (no proto edits) when generated packages still import old paths.
+  declares its path as" errors. Python signals: `alis_services_protobuf` imports,
+  `alis-services-protobuf` / `alis_services_protobuf_internal_*` / `*-protobuf-internal-*`
+  pip packages, or `protobuf-python-internal` in `--extra-index-url`. Read SKILL.md first,
+  then the language reference for your migration root. Go: rewrites go.mod, imports, and
+  Dockerfile GOPROXY/GONOSUMDB, then `alis packages install`. JavaScript and Python: manual,
+  fully documented in references. Package plumbing only — no business logic. Public-stub
+  migration may require re-running Define (no proto edits) when generated packages still import
+  old paths.
 metadata:
   alis.context.version: "1"
   # Context field paths this skill needs from the injected runtime context.
@@ -59,6 +63,9 @@ startup or test time.
   **Public stubs migration**.
 - A JavaScript frontend still uses `google-protobuf`, `grpc-web`, or `*_grpc_web_pb` imports
   and should move to `@bufbuild/protobuf` and Connect.
+- A Python service still imports through `alis_services_protobuf.*`, lists monolith pip packages
+  (`alis-services-protobuf`, `alis_services_protobuf_internal_*`, `*-protobuf-internal-*`), or
+  points `--extra-index-url` at `protobuf-python-internal`.
 
 ## When not to use
 
@@ -88,6 +95,8 @@ Before changing files, run `pwd` and briefly confirm the folder looks like the i
   `events/`, or nested modules.
 - **JavaScript frontend:** normally contains `package.json`, may contain `.npmrc`, `src/`,
   and a Vite or similar config.
+- **Python service:** normally contains `requirements.txt` or `pyproject.toml`, often
+  `alis_requirements.txt`, and Python server modules (`server.py`, `main.py`, …).
 
 If it does not look like the intended build or frontend folder, stop and ask the user to open
 the flow from the intended service rather than searching sibling products or services.
@@ -104,6 +113,7 @@ internal.<product>.<domain>/protobuf/<org>/<product>/<neuron-path>/<vN>
 | ------ | ------------------------------------------------- | ------------------------------------------------- |
 | Go     | `alis.build/<org>/<product>/<neuron-path>[/<vN>]` | module root — **no subpath**                      |
 | npm    | `@alis.build/<package-id-dashed>`                 | `<org>/<product>/<neuron-path>/<file>_pb` subpath |
+| Python | `<focus_package_id>` (pip normalizes to hyphens)  | `<focus_package_id>` — **no monolith prefix**     |
 
 Go module formula (`/v1` is trimmed; `/v2+` is kept):
 
@@ -127,6 +137,14 @@ npm example:
 | Legacy import                                                        | New import                                         |
 | -------------------------------------------------------------------- | -------------------------------------------------- |
 | `@internal.os.alis.services/protobuf/alis/os/mcp/v1/mcp_grpc_web_pb` | `@alis.build/alis-os-mcp-v1/alis/os/mcp/v1/mcp_pb` |
+
+Python examples:
+
+| Legacy import                                                 | New import                          | Pip package                         |
+| ------------------------------------------------------------- | ----------------------------------- | ----------------------------------- |
+| `alis_services_protobuf.internal.<org>.<product>.<neuron>.v2` | `<org>.<product>.<neuron>.v2`       | `<org>.<product>.<neuron>.v2`       |
+| `alis_services_protobuf.<org>.<other-product>.<neuron>.v1`    | `<org>.<other-product>.<neuron>.v1` | `<org>.<other-product>.<neuron>.v1` |
+| `alis_services_protobuf.<org>.open.<area>.v1`                 | `<org>.open.<area>.v1`              | `<org>.open.<area>.v1`              |
 
 Notes:
 
@@ -186,6 +204,19 @@ Examples (legacy path → split target):
 | `@open.alis.services/protobuf/alis/open/support/v1/...`   | `@alis-build/alis-open-support-v1/alis/open/support/v1/...`                 |
 | `@alis-build/common/...`                                  | Map by proto file path to the matching split package (same layout as above) |
 
+**Python** — three legacy generations, served from Artifact Registry:
+
+| Generation        | Pip / registry                        | Typical import                                                       |
+| ----------------- | ------------------------------------- | -------------------------------------------------------------------- |
+| Google monolith   | `google-common-protos` (Alis-managed) | `from google.type import date_pb2`                                   |
+| Open monolith     | `openprotos-python` registry          | `from alis_services_protobuf.<org>.open.<area>.v1 import <file>_pb2` |
+| Product re-export | via `alis-services-protobuf` monolith | `from alis_services_protobuf.<org>.open.<area>.v1 import <file>_pb2` |
+
+**Target:** one pip package per proto `package`, named **`<proto-package>` verbatim** — e.g.
+`<org>.open.<area>.v1`, `google.type`. Import root matches the pip package. Do not install
+`google-common-protos` alongside split `google.*` packages (same registration conflict as Go/JS).
+See [`references/python-per-neuron-protos.md`](references/python-per-neuron-protos.md).
+
 Other published split packages include `@alis-build/google-rpc`, `@alis-build/google-type`,
 `@alis-build/google-iam-v2`, `@alis-build/alis-open-validation-v1`, `@alis-build/alis-agui-history-v1`,
 `@alis-build/alis-evals-v1`, and domain-specific packages such as `@alis-build/alis-build-v1`.
@@ -218,8 +249,8 @@ Only the per-package split modules (`go.alis.build/common/<pkg-path>`) are suppo
 same proto file names. If one binary or bundle links both copies — even one directly and one
 through a dependency — it panics at startup or test time:
 `panic: proto: file "..." is already registered`. A service migrates per _dependency graph_,
-not per file: its own imports **and** every generated `alis.build/...` / `@alis.build/...`
-module it consumes must agree on the vanity path.
+not per file: its own imports **and** every generated `alis.build/...` / `@alis.build/...` /
+Python pip package it consumes must agree on the vanity path.
 
 Generated per-neuron packages embed whichever public-stub path was current when their
 package was last defined. Old generated modules therefore drag the old copies back into the
@@ -229,8 +260,8 @@ Symptoms of a half-migrated graph:
 
 - startup or test panic: `proto: file "..." is already registered — previously from
 "github.com/alis-build/public-go/..."` (or `@alis-build/google-common-protos/...`,
-  `@alis-build/common-es/...`, etc.), `currently from "go.alis.build/common/..."` (or
-  `@alis-build/google-api/...`, `@alis-build/alis-open-iam-v1/...`, etc.);
+  `@alis-build/common-es/...`, `google-common-protos`, etc.), `currently from "go.alis.build/common/..."` (or
+  `@alis-build/google-api/...`, `@alis-build/alis-open-iam-v1/...`, split `google.*` pip packages, etc.);
 - compile error where a handler "does not implement" the regenerated server interface, with
   `have ...(*"github.com/alis-build/public-go/..."` vs `want ...(*"go.alis.build/common/..."`
   (or equivalent JavaScript type paths);
@@ -250,12 +281,7 @@ before running Define/upgrade where the reference says otherwise.
      [`references/golang-per-neuron-protos.md`](references/golang-per-neuron-protos.md)
    - **JavaScript** (`package.json` in frontend app): read
      [`references/javascript-protobuf-es.md`](references/javascript-protobuf-es.md)
-4. If both Go and JavaScript exist in the same neuron (monorepo), run each reference from its
+   - **Python** (`requirements.txt`, `pyproject.toml`, or `alis_requirements.txt`): read
+     [`references/python-per-neuron-protos.md`](references/python-per-neuron-protos.md)
+4. If multiple languages exist in the same neuron (monorepo), run each reference from its
    respective root.
-
-## Python (not yet automated)
-
-Target package: `<org>.<product>.<neuron>.<vN>` verbatim (pip normalizes to
-`<org>-<product>-<neuron>-v<N>`), served from the product's `define-python` Artifact Registry
-repository. Manual steps mirror Go: swap the requirement, update imports to the new package
-root, remove the legacy `<domain>-protobuf-internal-<product>` requirement.
