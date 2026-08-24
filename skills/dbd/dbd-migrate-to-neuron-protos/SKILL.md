@@ -15,7 +15,8 @@ description: >
   to individual "@alis-build/<proto-package-dashed>" packages on public npm. Triggers:
   "migrate to neuron protos", "migrate to alis.build packages", "migrate to protobuf-es",
   the migration hint after `alis packages upgrade` or the 'u' key, build failures resolving
-  legacy modules, startup/test panic "proto: file ... is already registered", handler
+  legacy modules, startup/test panic "proto: file ... is already registered" (Python:
+  descriptor-pool "duplicate file name" registration errors), handler
   "does not implement" have/want mismatches between old and new stub paths, or "module
   declares its path as" errors. Python signals: `alis_services_protobuf` imports,
   `alis-services-protobuf` / `alis_services_protobuf_internal_*` / `*-protobuf-internal-*`
@@ -47,8 +48,8 @@ module/import plumbing changes. JavaScript additionally migrates from `google-pr
 
 This skill also covers the companion platform upgrade for **public common stubs**. The two
 migrations share one invariant: a binary or frontend bundle must contain exactly one copy of
-each proto package — old and new copies of the same stubs in one dependency graph panic at
-startup or test time.
+each proto package — old and new copies of the same stubs in one dependency graph fail at
+startup or test time (a Go panic, or a Python descriptor-pool registration error).
 
 ## When to use
 
@@ -152,10 +153,13 @@ Notes:
   existing import alias** (`pb "…"` stays `pb "…"`) so no Go call site changes.
 - JavaScript: `_grpc_web_pb` suffix becomes `_pb`; `*PromiseClient` becomes `*Service`
   (Connect `createClient`).
+- Python: leaf proto packages barrel-export `*_pb2` / `*_pb2_grpc` modules from the
+  package's `__init__.py`; import modules from the package, message types from the
+  `*_pb2` module. See [`references/python-per-neuron-protos.md`](references/python-per-neuron-protos.md).
 - Cross-product legacy imports map by the same rule. The platform distributes packages of a
-  product's accessible products into that product's own `define-go` / `define-ecmascript`
-  registries, so they resolve without extra registry configuration (Go additionally falls
-  through the multi-entry GOPROXY).
+  product's accessible products into that product's own `define-go` / `define-ecmascript` /
+  `define-python` registries, so they resolve without extra registry configuration (Go
+  additionally falls through the multi-entry GOPROXY).
 - Do not touch `open.alis.services/protobuf` / `open.standards.exchange/protobuf` imports
   (open/standards protos) or `go.alis.build/*` helper libraries — they are not part of this
   per-neuron scheme. (Legacy common-stub imports — `github.com/alis-build/public-go`,
@@ -212,10 +216,12 @@ Examples (legacy path → split target):
 | Open monolith     | `openprotos-python` registry          | `from alis_services_protobuf.<org>.open.<area>.v1 import <file>_pb2` |
 | Product re-export | via `alis-services-protobuf` monolith | `from alis_services_protobuf.<org>.open.<area>.v1 import <file>_pb2` |
 
-**Target:** one pip package per proto `package`, named **`<proto-package>` verbatim** — e.g.
-`<org>.open.<area>.v1`, `google.type`. Import root matches the pip package. Do not install
-`google-common-protos` alongside split `google.*` packages (same registration conflict as Go/JS).
-See [`references/python-per-neuron-protos.md`](references/python-per-neuron-protos.md).
+**Target:** one pip package per proto `package`, named **`<proto-package>` verbatim** — same
+`define-python` wheel layout and barrel imports as per-neuron packages (e.g.
+`<org>.open.<area>.v1`, `google.type`). Add an explicit pip requirement for each imported
+package. Do not install `google-common-protos` alongside split `google.*` packages (same
+registration conflict as Go/JS). See
+[`references/python-per-neuron-protos.md`](references/python-per-neuron-protos.md).
 
 Other published split packages include `@alis-build/google-rpc`, `@alis-build/google-type`,
 `@alis-build/google-iam-v2`, `@alis-build/alis-open-validation-v1`, `@alis-build/alis-agui-history-v1`,

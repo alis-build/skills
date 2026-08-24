@@ -36,7 +36,7 @@ rg -n 'protobuf-python-internal|protobuf-python/simple' \
 
 Target pip package: **`<focus_package_id>` verbatim** (dots kept). Pip normalizes the name to
 hyphens on install (`<org>.<product>.<neuron>.v1` → `<org>-<product>-<neuron>-v1`), but declare
-it with dots in `alis_requirements.txt` / `pyproject.toml` to match the proto `package`.
+it with dots in your requirements file(s) to match the proto `package`.
 
 Served from the product's **`define-python`** Artifact Registry repository:
 
@@ -44,13 +44,75 @@ Served from the product's **`define-python`** Artifact Registry repository:
 https://<region>-python.pkg.dev/<product-project>/define-python/simple/
 ```
 
-**Import root = proto `package` = pip package name.** There is no monolith prefix and no extra
-subpath — generated modules live directly under the proto package:
+**Import root = proto `package` = pip package name.** There is no monolith prefix. Generated
+`*_pb2.py` / `*_pb2_grpc.py` modules live under that package directory.
+
+### Package layout and barrel exports
+
+All **`define-python` packages** — per-neuron (`<org>.<product>.<neuron>.v1`), cross-product
+neurons, and open/common stubs (`<org>.open.<area>.v1`, `google.type`, …) — share the same
+installed layout:
+
+| Directory                                                 | `__init__.py` role                                          |
+| --------------------------------------------------------- | ----------------------------------------------------------- |
+| Parent segments (e.g. `<org>`, `<org>.open`, …)           | Namespace only: `declare_namespace(__name__)`               |
+| Leaf proto package (the pip package / `focus_package_id`) | **Barrel** — re-exports every `*_pb2` / `*_pb2_grpc` module |
+
+Open stubs are not a different import scheme — only the legacy monolith **prefix** and **pip
+requirement line** change during migration.
+
+Leaf barrel shape (generated — do not hand-edit):
 
 ```python
+from . import <file>_pb2 as <file>_pb2
+from . import <file>_pb2_grpc as <file>_pb2_grpc
+
+__all__ = [
+    "<file>_pb2",
+    "<file>_pb2_grpc",
+]
+```
+
+**Preferred imports** use the barrel — import modules from the proto package:
+
+```python
+# Per-neuron
 from <org>.<product>.<neuron>.v1 import <file>_pb2 as pb
 from <org>.<product>.<neuron>.v1 import <file>_pb2_grpc as pb_grpc
+
+# Open / common stub — same pattern
+from <org>.open.<area>.v1 import <file>_pb2 as pb
+from <org>.open.<area>.v1 import <file>_pb2_grpc as pb_grpc
 ```
+
+Message and enum types live on the `*_pb2` module:
+
+```python
+from <org>.open.<area>.v1 import <file>_pb2 as pb
+from <org>.open.<area>.v1.<file>_pb2 import <MessageType>   # direct submodule — also valid
+# use pb.<MessageType>, etc.
+```
+
+The barrel re-exports **proto modules** (`*_pb2`, `*_pb2_grpc`), not individual message classes.
+Do not expect `from <focus_package_id> import <MessageType>` to work.
+
+**Inspect an installed package** (local venv, Docker build layer, or CI cache):
+
+```bash
+# Show installed files for the wheel
+python -m pip show -f <focus_package_id>
+
+# Read the barrel (site-packages path varies by platform / Python version)
+python - <<'PY'
+import importlib, inspect, os
+pkg = importlib.import_module("<org>.<product>.<neuron>.v1")
+print(os.path.dirname(inspect.getfile(pkg)))
+print(open(inspect.getfile(pkg), encoding="utf-8").read())
+PY
+```
+
+Leaf packages also ship `py.typed` and matching `__init__.pyi` / `*_pb2.pyi` stubs for type
+checkers.
 
 ### Mapping rule (product packages)
 
@@ -70,8 +132,10 @@ the **pip requirement** changes — imports stay the same:
 from <org>.<product>.<neuron>.v1 import <file>_pb2 as pb
 ```
 
-Cross-product neurons each get their own pip package and `--extra-index-url` for the owning
-product's `define-python` repo (same pattern as Go's multi-entry `GOPROXY`).
+Cross-product neurons each get their own explicit pip requirement. They resolve from your own
+product's `define-python` index when the owning product is accessible (the platform
+distributes accessible products' packages there); add an `--extra-index-url` for the owning
+product's `define-python` repo only when the package is not distributed into your index.
 
 ---
 
@@ -92,28 +156,65 @@ Under the migration root, collect:
 Map each distinct neuron path to its `focus_package_id` pip package using the table in
 [`SKILL.md`](../SKILL.md).
 
-### Step 2 — Rewrite `alis_requirements.txt`
+### Step 2 — Rewrite requirements
 
-Replace product registry suffixes:
+Requirements-file services declare private packages in one of two **valid target layouts**;
+Poetry projects keep declaring them in `pyproject.toml` (see Step 5). `alis_requirements.txt`
+is never required: default to the **embedded** layout, and use **split** only when
+`alis_requirements.txt` already exists in the repo or the user asks for it. Keep the layout
+the service already uses — do not split or merge files unless asked.
 
-| Before                               | After                                                        |
-| ------------------------------------ | ------------------------------------------------------------ |
-| `protobuf-python-internal`           | `define-python`                                              |
-| org `protobuf-python` monolith index | per-neuron `define-python` indexes for each imported product |
+| Layout                 | Where private indexes + neuron packages live |
+| ---------------------- | -------------------------------------------- |
+| **Embedded** (default) | `requirements.txt` (alongside PyPI deps)     |
+| **Split**              | `alis_requirements.txt`                      |
 
-Drop monolith pip packages. Add one line per neuron package:
+The Dockerfile install order for each layout lives in Step 4.
+
+In both layouts:
+
+- Replace registry suffix `protobuf-python-internal` with `define-python`.
+- Drop org `protobuf-python` monolith indexes and monolith pip packages.
+- Add one pinned requirement per neuron package (and per cross-product / public-stub package).
+- Group each `--extra-index-url` with the packages that resolve from it — for readability
+  only. pip applies every index option in a requirements file to the whole install; line
+  order does not scope resolution. Version pins, not placement, control what gets picked.
+
+**Embedded layout** (`requirements.txt`, the default) — PyPI deps first, then the private
+index grouped with its packages:
+
+```text
+grpcio==<version>
+protobuf==<version>
+
+# Internal definitions
+--extra-index-url https://<region>-python.pkg.dev/<product-project>/define-python/simple/
+<focus_package_id>==<version>
+<org>.open.<area>.v1==<version>
+```
+
+**Split layout** (`alis_requirements.txt`, only when pre-existing or requested):
 
 ```text
 # Internal definitions
 --extra-index-url https://<region>-python.pkg.dev/<product-project>/define-python/simple/
 <focus_package_id>==<version>
+<org>.open.<area>.v1==<version>
 
-# Cross-product example (repeat per owning product):
+# Cross-product fallback — only when the package is not in your product's index:
 --extra-index-url https://<region>-python.pkg.dev/<other-product-project>/define-python/simple/
 <other-focus-package-id>==<version>
 ```
 
-Pin versions explicitly during migration; use `@latest` / unpinned only after the graph is clean.
+Cross-product neurons and open/common stubs each get an **explicit pip requirement** (same as
+any imported package that is not your own neuron). They resolve from the same product
+`define-python` index when the owning package is accessible to the product — add a separate
+`--extra-index-url` only when the package is not distributed into your product's index.
+
+If you migrate from split to embedded, delete the emptied `alis_requirements.txt`. In the
+other direction `requirements.txt` still holds the PyPI deps — never delete it.
+
+Pin versions explicitly during migration; use unpinned only after the graph is clean.
 
 **Remove** legacy entries such as:
 
@@ -150,25 +251,37 @@ rg --files -g 'Dockerfile*' .
 Legacy Python Dockerfiles fall into **three shapes**. Inspect the file before editing — do not
 assume it already installs `alis_requirements.txt`.
 
-| Legacy shape                       | Typical install order                                                                                     | Migration action                                                                                                                                                                |
-| ---------------------------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Inline monolith**                | `requirements.txt` → keyring → `pip install --index-url …/protobuf-python/simple/ alis-services-protobuf` | Remove the inline monolith `RUN`. Add keyring (if missing) then `alis_requirements.txt` **before** `requirements.txt`.                                                          |
-| **`alis_requirements.txt`**        | keyring → `alis_requirements.txt` → `requirements.txt`                                                    | Keep the order; update `alis_requirements.txt` contents (`define-python` indexes, per-neuron packages). Remove any leftover inline monolith `RUN`.                              |
-| **Embedded in `requirements.txt`** | keyring → `requirements.txt` (file contains `--extra-index-url` + monolith packages)                      | Move Alis index lines and packages into `alis_requirements.txt`; leave PyPI deps in `requirements.txt`. Adopt the keyring → `alis_requirements.txt` → `requirements.txt` order. |
+| Legacy shape                        | Typical install order                                                                                     | Migration action                                                                                                                                                              |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Inline monolith**                 | `requirements.txt` → keyring → `pip install --index-url …/protobuf-python/simple/ alis-services-protobuf` | Remove the inline monolith `RUN`. Move the private index + packages into the existing `requirements.txt` (embedded layout — the default; create `alis_requirements.txt` only if the user asks for the split layout). Install keyring, then the requirements file(s).                                              |
+| **Split (`alis_requirements.txt`)** | keyring → `alis_requirements.txt` → `requirements.txt`                                                    | Keep the order; update `alis_requirements.txt` contents. Remove any leftover inline monolith `RUN`.                                                                           |
+| **Embedded (`requirements.txt`)**   | keyring → `requirements.txt` (file contains `--extra-index-url` + monolith packages)                      | Keep the single-file layout; update index URLs and packages in `requirements.txt`. Remove any leftover inline monolith `RUN`. Delete unused `alis_requirements.txt` if empty. |
 
-**Target install order** (all shapes converge here):
+**Target install order** — depends on layout:
+
+| Layout                 | Dockerfile steps after `COPY`                                 |
+| ---------------------- | ------------------------------------------------------------- |
+| **Embedded** (default) | keyring + auth → `requirements.txt`                           |
+| **Split**              | keyring + auth → `alis_requirements.txt` → `requirements.txt` |
+
+In both cases:
 
 1. `COPY` application source.
-2. Optionally upgrade `setuptools` / `pip` (common but not required).
-3. Install **`keyring`** and **`keyrings.google-artifactregistry-auth`** from PyPI — required so
-   pip can authenticate to private Artifact Registry indexes.
-4. `pip install -r alis_requirements.txt` — private indexes and per-neuron packages live here
-   (`--extra-index-url` lines are in the file, not duplicated as Dockerfile `RUN`s).
-5. `pip install -r requirements.txt` — public PyPI dependencies only.
+2. Ensure `setuptools` is installed: the generated namespace `__init__.py` files call
+   `pkg_resources.declare_namespace`, and Python 3.12+ venvs and images no longer bundle
+   `setuptools`. Services commonly pin `setuptools<81` because newer releases deprecate
+   `pkg_resources`.
+3. Install **`keyring`** and **`keyrings.google-artifactregistry-auth`** from PyPI in their
+   own step before any private-index install. pip authenticates to the private index through
+   the keyring backend, so the backend must already be installed when that install starts —
+   a requirements-file entry alone installs it too late to authenticate that same install.
+4. Install the requirements file(s) for your layout (see table above). Private indexes and
+   per-neuron packages live in the requirements file — as `--extra-index-url` lines, not as
+   separate Dockerfile `RUN pip install --index-url …` commands.
 
 Registry URL changes (`protobuf-python-internal` → `define-python`, dropping org
-`protobuf-python` / `openprotos-python` indexes) belong in **`alis_requirements.txt`**, not as
-separate `RUN pip install --index-url …` lines in the Dockerfile.
+`protobuf-python` / `openprotos-python` indexes) belong in the **requirements file that holds
+private packages** (`alis_requirements.txt` or `requirements.txt`), not in Dockerfile `RUN`s.
 
 **Remove** legacy Dockerfile lines such as:
 
@@ -188,20 +301,27 @@ RUN pip3 install --index-url https://<region>-python.pkg.dev/<org-project>/proto
 ```
 
 ```dockerfile
-# After — per-neuron shape
+# After — per-neuron shape (embedded layout, default)
+RUN pip3 install keyring keyrings.google-artifactregistry-auth
+RUN pip3 install -r requirements.txt --no-cache
+```
+
+```dockerfile
+# After — per-neuron shape (split layout)
 RUN pip3 install keyring keyrings.google-artifactregistry-auth
 RUN pip3 install -r alis_requirements.txt --no-cache
 RUN pip3 install -r requirements.txt --no-cache
 ```
 
-When the Dockerfile already uses `alis_requirements.txt`, the install block often needs **no
-structural change** — only the file contents and removal of any stray inline monolith install.
+When the Dockerfile already matches your chosen layout, the install block often needs **no
+structural change** — only the requirements file contents and removal of any stray inline
+monolith install.
 
 **Protobuf runtime version:** newer `define-python` packages may require a newer `protobuf`
-major than your existing `requirements.txt` pins. After installing both requirement files,
-check for version conflicts. Some services add an explicit pin, e.g.
-`pip install --upgrade --no-deps protobuf==<version>`, once the dependency tree resolves. Only
-add this when the build or an import-time check fails — do not pin preemptively.
+major than your existing pins. After installing requirements, check for version conflicts.
+Some services add an explicit pin, e.g. `pip install --upgrade --no-deps protobuf==<version>`,
+once the dependency tree resolves. Only add this when the build or an import-time check fails —
+do not pin preemptively.
 
 **Optional build-time import check** (recommended when migrating a gRPC server):
 
@@ -217,6 +337,17 @@ There is no CLI installer for Python yet. From the migration root:
 python3 -m venv .venv
 source .venv/bin/activate
 pip install keyring keyrings.google-artifactregistry-auth
+```
+
+Then, embedded layout (default):
+
+```bash
+pip install -r requirements.txt
+```
+
+Or split layout:
+
+```bash
 pip install -r alis_requirements.txt
 pip install -r requirements.txt
 ```
@@ -239,8 +370,15 @@ monolith packages, remove:
 
 ## Public stubs migration (Python)
 
-The public-stubs **invariant** and symptom list live in [`SKILL.md`](../SKILL.md). Python has
-three legacy sources for common/open protos:
+The public-stubs **invariant** lives in [`SKILL.md`](../SKILL.md). On Python, open and split
+common packages are ordinary **`define-python` wheels** — same barrel layout, pip name =
+proto `package`, and import paths documented above. Migration is:
+
+1. Drop the legacy monolith prefix from imports.
+2. Add an explicit pip requirement for each imported package.
+3. Drop legacy monolith pip sources (`google-common-protos`, `openprotos-python`, etc.).
+
+### Legacy sources
 
 | Legacy source              | Typical pip / registry                   | Typical import                                                       |
 | -------------------------- | ---------------------------------------- | -------------------------------------------------------------------- |
@@ -248,8 +386,7 @@ three legacy sources for common/open protos:
 | Open monolith              | `openprotos-python` registry + org index | `from alis_services_protobuf.<org>.open.<area>.v1 import <file>_pb2` |
 | Product monolith re-export | via `alis-services-protobuf`             | `from alis_services_protobuf.<org>.open.<area>.v1 import <file>_pb2` |
 
-**Target:** one pip package per proto `package`, named **`<proto-package>` verbatim** (same
-rule as per-neuron packages):
+### Target (same as per-neuron)
 
 | Proto package          | Pip package            | Import                                        |
 | ---------------------- | ---------------------- | --------------------------------------------- |
@@ -258,31 +395,25 @@ rule as per-neuron packages):
 | `google.longrunning`   | `google.longrunning`   | `import google.longrunning.operations_pb2`    |
 | `<org>.open.<area>.v1` | `<org>.open.<area>.v1` | `from <org>.open.<area>.v1 import <file>_pb2` |
 
-Split public packages publish to **`define-python`** (org/common project) or their owning
-registry — check where the package was defined. Declare each one explicitly in
-`alis_requirements.txt` until pip dependency metadata on all generated packages pulls them in
-transitively.
-
-**Import rewrite** — drop the monolith prefix for open stubs:
+**Import rewrite:**
 
 ```python
 # Before
 from alis_services_protobuf.<org>.open.<area>.v1 import <file>_pb2
 
-# After
+# After — same barrel import as any other define-python package
 from <org>.open.<area>.v1 import <file>_pb2
 ```
 
-**`google-common-protos`:** this Alis-managed monolith overlaps the split `google.*`
-packages. Do not install it alongside split packages — same registration conflict as Go/JS.
-Replace it with the individual split packages your imports need (`google.type`, `google.rpc`,
-`google.longrunning`, …). Keep **`googleapis-common-protos`** (PyPI) only when you also need
-standard Google API client protos it provides; it does not replace Alis split packages.
+**Explicit dependencies:** list every imported open/common/neuron package in your requirements
+file, after the `--extra-index-url` it resolves from. A package's `METADATA` may declare further
+`define-python` deps (e.g. `<org>.open.<area>.v1` requiring `google.type`) — add those too if
+import fails. Remove unused imports instead of adding packages you do not need.
 
-**Known gap:** per-neuron packages may declare dependencies on split public packages that are
-not yet published or not yet wired into pip metadata. If imports fail with `ModuleNotFoundError`
-for a split `<org>.open.*` or `google.*` package, add that package explicitly to
-`alis_requirements.txt` and pin a version from the owning `define-python` registry.
+**`google-common-protos`:** this Alis-managed monolith overlaps split `google.*` packages. Do
+not install it alongside split packages — same registration conflict as Go/JS. Keep
+**`googleapis-common-protos`** (PyPI) only when you also need standard Google API client protos;
+it does not replace Alis split packages.
 
 ---
 
@@ -320,9 +451,9 @@ for a split `<org>.open.*` or `google.*` package, add that package explicitly to
 ## Quick checklist
 
 - [ ] Legacy imports inventoried; each neuron mapped to `focus_package_id`.
-- [ ] `alis_requirements.txt` uses `define-python` indexes, not `protobuf-python-internal`.
+- [ ] Private indexes use `define-python`, not `protobuf-python-internal` (in whichever file holds them).
 - [ ] Monolith pip packages removed; one requirement per neuron (+ cross-product / public stubs).
-- [ ] Imports rewritten (monolith prefix dropped where present).
-- [ ] Dockerfile uses keyring → `alis_requirements.txt` → `requirements.txt`; inline monolith `RUN` removed.
+- [ ] Imports rewritten (monolith prefix dropped where present); unused stub imports removed.
+- [ ] Dockerfile matches chosen layout (embedded by default; split only if pre-existing or requested); inline monolith `RUN` removed; both `keyring` and `keyrings.google-artifactregistry-auth` installed before private indexes.
 - [ ] Public stubs migrated off `google-common-protos` / `alis_services_protobuf.<org>.open.*`.
 - [ ] Local venv install succeeds; server module imports cleanly.
