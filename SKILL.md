@@ -1,15 +1,12 @@
 ---
 name: adk-add-agui
 description: >
-  Use this skill when the user wants to expose an ADK agent to a custom frontend, integrate
-  CopilotKit or other AG-UI clients, wire the AG-UI SSE endpoints, add thread history, add AG-UI capabilities and more. Wires
-  webagui.NewLauncher with WithThreadService and WithGRPCRegistrar into the web launcher stack.
-  For browser UI use add-console after AG-UI wiring.
+  Use this skill when the user wants to expose an ADK agent to a custom frontend, integrate CopilotKit or other AG-UI clients, wire the AG-UI SSE endpoints, add thread history, add AG-UI capabilities and more. Wires webagui.NewLauncher with WithThreadService and WithGRPCRegistrar into the web launcher stack. For browser UI use add-console after AG-UI wiring.
+
 metadata:
   alis.context.version: "1"
   alis.context.requires: >-
-    focus_neuron_id
-    workstations
+    focus_neuron_id workstations
 ---
 
 # Add AG-UI launcher
